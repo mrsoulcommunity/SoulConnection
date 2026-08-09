@@ -4,6 +4,7 @@ import { formatBytes } from '../utils/format.js';
 import { Section, Toggle } from './settingsPrimitives.jsx';
 import NetworkSettings from './NetworkSettings.jsx';
 import FailoverSettings from './FailoverSettings.jsx';
+import UpdatePanel from './UpdatePanel.jsx';
 
 const INTERVAL_OPTIONS = [
   { value: 0, label: 'خاموش' },
@@ -18,22 +19,10 @@ const LOG_LEVELS = [
   { value: 'debug', label: 'دیباگ' },
 ];
 
-function updaterStatusHint(updaterStatus) {
-  switch (updaterStatus?.status) {
-    case 'checking': return 'در حال بررسی…';
-    case 'available': return `نسخه‌ی جدید ${updaterStatus.version} موجود است`;
-    case 'not-available': return 'شما از آخرین نسخه استفاده می‌کنید';
-    case 'downloading': return `در حال دانلود… ${Math.round(updaterStatus.percent || 0)}٪`;
-    case 'downloaded': return `نسخه‌ی ${updaterStatus.version} آماده‌ی نصب است`;
-    case 'installing': return 'در حال نصب… برنامه بسته و دوباره باز می‌شود';
-    case 'error': return `خطا در بررسی به‌روزرسانی: ${updaterStatus.message}`;
-    default: return null;
-  }
-}
-
 export default function SettingsView({
   settings, connectionState, profiles, appInfo, systemProxy,
-  updaterStatus, onCheckForUpdates, onDownloadUpdate, onInstallUpdate,
+  updaterStatus, onCheckForUpdates, onDownloadUpdate, onDownloadAndInstall, onInstallUpdate,
+  onCancelUpdateDownload, onCancelAutoInstall, onOpenUpdateFolder,
   onUpdate, onUpdateChecked, onOpenLogsFolder,
   onExportBackup, onImportBackup, onResetUsage, onResetAllUsage,
   onSystemProxySetDesired, onSystemProxySync, onOpenProxyFolder, onResetNetworkDefaults,
@@ -197,42 +186,19 @@ export default function SettingsView({
         </div>
       </Section>
 
-      <Section title="درباره" icon="info" description="نسخه‌ی نصب‌شده و به‌روزرسانی">
-        <div className="setting-row">
-          <div className="setting-text">
-            <span className="setting-label">Soul Connection</span>
-            <span className="setting-hint mono">نسخه {appInfo?.version || '—'}</span>
-          </div>
-        </div>
-        <div className="setting-row">
-          <div className="setting-text">
-            <span className="setting-label">به‌روزرسانی</span>
-            {updaterStatusHint(updaterStatus) && (
-              <span className="setting-hint">{updaterStatusHint(updaterStatus)}</span>
-            )}
-          </div>
-          {updaterStatus?.status === 'available' ? (
-            <button className="btn icon-inline-btn" onClick={onDownloadUpdate}>
-              <Icon name="arrowDown" size={14} />
-              دانلود
-            </button>
-          ) : updaterStatus?.status === 'downloaded' ? (
-            <button className="btn icon-inline-btn" onClick={onInstallUpdate}>
-              <Icon name="refresh" size={14} />
-              نصب و راه‌اندازی مجدد
-            </button>
-          ) : (
-            <button
-              className="btn icon-inline-btn"
-              onClick={onCheckForUpdates}
-              disabled={updaterStatus?.status === 'checking' || updaterStatus?.status === 'downloading'}
-            >
-              <Icon name="refresh" size={14} />
-              بررسی برای به‌روزرسانی
-            </button>
-          )}
-        </div>
-      </Section>
+      <UpdatePanel
+        appInfo={appInfo}
+        update={updaterStatus}
+        mode={settings.autoUpdateMode || 'auto'}
+        onCheck={onCheckForUpdates}
+        onDownload={onDownloadUpdate}
+        onDownloadAndInstall={onDownloadAndInstall}
+        onInstallNow={onInstallUpdate}
+        onCancelDownload={onCancelUpdateDownload}
+        onCancelAuto={onCancelAutoInstall}
+        onOpenFolder={onOpenUpdateFolder}
+        onModeChange={(v) => onUpdate({ autoUpdateMode: v })}
+      />
     </div>
   );
 }

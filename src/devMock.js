@@ -32,6 +32,7 @@ const DEFAULT_SETTINGS = {
   autoReconnect: true,
   killSwitchEnabled: false,
   subAutoUpdateInterval: 0,
+  autoUpdateMode: 'auto',
   xrayLogLevel: 'warning',
   socksPort: 10808,
   httpPort: 10809,
@@ -195,22 +196,90 @@ export function installDevMock() {
   const emitSoul = (payload) => listeners.soul.forEach((fn) => fn(payload));
   const emitUpdater = (payload) => listeners.updater.forEach((fn) => fn(payload));
 
-  // Mirrors the real status sequence: downloading (with progress) -> downloaded,
-  // and when `thenInstall` is set, straight on to installing -- the one-click
-  // path the update card uses.
+  // ---- update protocol mock ----
+  //
+  // Walks the same state machine as electron/lib/update, including a wobbling
+  // download rate, so the progress readout and the auto-install countdown can
+  // actually be exercised in the browser rather than only on a real release.
+  const UPDATE_SIZE = 188 * 1024 * 1024;
+  let updateState = {
+    status: 'idle',
+    currentVersion: '1.1.2',
+    version: null,
+    notes: '',
+    releaseDate: null,
+    size: null,
+    transferred: 0,
+    total: 0,
+    percent: 0,
+    bytesPerSecond: 0,
+    etaSeconds: null,
+    filePath: null,
+    folder: 'C:\\Users\\you\\AppData\\Local\\Programs\\Soul Connection\\Updates',
+    canInstall: true,
+    autoInstallAt: null,
+    autoInstallDelayMs: 15000,
+    checkedAt: null,
+    error: null,
+  };
+  let updateTimer = null;
+  let updateCancelled = false;
+
+  const patchUpdate = (patch) => {
+    updateState = { ...updateState, ...patch };
+    emitUpdater({ ...updateState });
+    return { ...updateState };
+  };
+
   const runMockDownload = (thenInstall) => {
-    let percent = 0;
-    emitUpdater({ status: 'downloading', percent });
-    const timer = setInterval(() => {
-      percent += 12;
-      if (percent >= 100) {
-        clearInterval(timer);
-        emitUpdater({ status: 'downloaded', version: '2.1.0' });
-        if (thenInstall) setTimeout(() => emitUpdater({ status: 'installing' }), 300);
-      } else {
-        emitUpdater({ status: 'downloading', percent });
+    if (updateTimer) return { ...updateState };
+    updateCancelled = false;
+    patchUpdate({
+      status: 'downloading',
+      version: updateState.version || '2.1.0',
+      size: UPDATE_SIZE,
+      total: UPDATE_SIZE,
+      transferred: 0,
+      percent: 0,
+      error: null,
+      autoInstallAt: null,
+    });
+
+    updateTimer = setInterval(() => {
+      if (updateCancelled) return;
+      // A rate that drifts between ~1.5 and ~6 MB/s, sampled five times a
+      // second -- the same cadence the real downloader emits at.
+      const bps = (1.5 + Math.random() * 4.5) * 1024 * 1024;
+      const transferred = Math.min(UPDATE_SIZE, updateState.transferred + bps / 5);
+      const remaining = UPDATE_SIZE - transferred;
+      patchUpdate({
+        transferred,
+        percent: (transferred / UPDATE_SIZE) * 100,
+        bytesPerSecond: bps,
+        etaSeconds: remaining > 0 ? Math.round(remaining / bps) : null,
+      });
+
+      if (transferred >= UPDATE_SIZE) {
+        clearInterval(updateTimer);
+        updateTimer = null;
+        patchUpdate({ status: 'verifying', bytesPerSecond: 0, etaSeconds: null });
+        setTimeout(() => {
+          patchUpdate({
+            status: 'ready',
+            percent: 100,
+            filePath: `${updateState.folder}\\SoulConnection-Setup-${updateState.version}.exe`,
+            autoInstallAt: thenInstall ? Date.now() + updateState.autoInstallDelayMs : null,
+          });
+          if (thenInstall) {
+            setTimeout(() => {
+              if (updateState.autoInstallAt) patchUpdate({ status: 'installing', autoInstallAt: null });
+            }, updateState.autoInstallDelayMs);
+          }
+        }, 1200);
       }
-    }, 250);
+    }, 200);
+
+    return { ...updateState };
   };
   const on = (key) => (fn) => {
     listeners[key].push(fn);
@@ -557,15 +626,69 @@ export function installDevMock() {
     copyImage: async () => true,
     resetUsage: async () => profiles,
     resetAllUsage: async () => profiles,
-    // Walks the same status sequence electron-updater emits against GitHub, so
-    // the update banner and the About section can be exercised in the browser.
-    checkForUpdates: () => {
-      emitUpdater({ status: 'checking' });
-      setTimeout(() => emitUpdater({ status: 'available', version: '2.1.0' }), 700);
+    updaterState: async () => ({ ...updateState }),
+    checkForUpdates: async () => {
+      patchUpdate({ status: 'checking', error: null });
+      await new Promise((r) => setTimeout(r, 800));
+      return patchUpdate({
+        status: 'available',
+        version: '2.1.0',
+        size: UPDATE_SIZE,
+        total: UPDATE_SIZE,
+        transferred: 0,
+        percent: 0,
+        checkedAt: Date.now(),
+        releaseDate: new Date().toISOString(),
+        notes: '## تغییرات\n- بازنویسی کامل سیستم به‌روزرسانی\n- نمایش سرعت لحظه‌ای دانلود\n- نصب خودکار با امکان لغو',
+      });
     },
-    downloadUpdate: () => runMockDownload(false),
-    downloadAndInstall: () => runMockDownload(true),
-    installUpdate: () => emitUpdater({ status: 'installing' }),
+    downloadUpdate: async () => runMockDownload(false),
+    downloadAndInstall: async () => runMockDownload(true),
+    installUpdate: async () => {
+      if (updateState.status !== 'ready') return runMockDownload(true);
+      return patchUpdate({ status: 'installing', autoInstallAt: null });
+    },
+    cancelUpdateDownload: async () => {
+      updateCancelled = true;
+      if (updateTimer) { clearInterval(updateTimer); updateTimer = null; }
+      return patchUpdate({ status: 'available', bytesPerSecond: 0, etaSeconds: null });
+    },
+    cancelAutoInstall: async () => patchUpdate({ autoInstallAt: null }),
+    openUpdateFolder: async () => updateState.folder,
+    // Dev-only: drop the update panel straight into a given state. The happy
+    // path is reachable by clicking through, but "you are up to date", a failed
+    // download and the mid-flight verify are not -- and those are exactly the
+    // states worth being able to look at while working on the panel.
+    //   window.soul.mockUpdate('error') | ('not-available') | ('verifying')
+    //   window.soul.mockUpdate({ status: 'ready' })   // any raw patch
+    mockUpdate: (arg) => {
+      if (updateTimer) { clearInterval(updateTimer); updateTimer = null; }
+      updateCancelled = true;
+      const presets = {
+        'not-available': {
+          status: 'not-available', version: null, size: null, notes: '',
+          filePath: null, autoInstallAt: null, percent: 0, error: null,
+          checkedAt: Date.now(),
+        },
+        error: {
+          status: 'error', version: '2.1.0', bytesPerSecond: 0, etaSeconds: null,
+          autoInstallAt: null,
+          error: { message: 'اتصال در میانه‌ی دانلود قطع شد', phase: 'download' },
+        },
+        verifying: {
+          status: 'verifying', version: '2.1.0', size: UPDATE_SIZE, total: UPDATE_SIZE,
+          transferred: UPDATE_SIZE, percent: 100, bytesPerSecond: 0, etaSeconds: null,
+          error: null,
+        },
+        ready: {
+          status: 'ready', version: '2.1.0', size: UPDATE_SIZE, total: UPDATE_SIZE,
+          transferred: UPDATE_SIZE, percent: 100, bytesPerSecond: 0, etaSeconds: null,
+          filePath: `${updateState.folder}\\SoulConnection-Setup-2.1.0.exe`,
+          autoInstallAt: null, error: null,
+        },
+      };
+      return patchUpdate(typeof arg === 'string' ? (presets[arg] || { status: arg }) : arg);
+    },
     openLogsFolder: () => {},
     openProxyFolder: () => {},
 

@@ -32,7 +32,7 @@ const { JsonStore } = require('./lib/store.cjs');
 const { findFreePort } = require('./lib/freePort.cjs');
 const { isElevated, relaunchElevated } = require('./lib/elevation.cjs');
 const { StatsClient } = require('./lib/statsApi.cjs');
-const { initUpdater, checkForUpdates, downloadUpdate, downloadAndInstall, quitAndInstall } = require('./lib/updater.cjs');
+const { UpdateManager, MODES: UPDATE_MODES } = require('./lib/update/index.cjs');
 const { SoulPool } = require('./lib/soulPool.cjs');
 const routingRulesLib = require('./lib/routing/rules.cjs');
 const { compileRoutingRules } = require('./lib/routing/xrayRouting.cjs');
@@ -63,6 +63,11 @@ const DEFAULT_SETTINGS = {
   autoReconnect: true,
   killSwitchEnabled: false,
   subAutoUpdateInterval: 0, // ms; 0 = off
+  // App update policy. 'auto' downloads a new release and installs it after a
+  // visible, cancellable countdown; 'download' parks the installer in the
+  // Updates folder and waits; 'notify' does nothing until asked. See
+  // lib/update/index.cjs.
+  autoUpdateMode: 'auto',
   xrayLogLevel: 'warning',
   socksPort: SOCKS_PORT, // preferred; auto-bumped to the next free port if taken
   httpPort: HTTP_PORT,
@@ -1155,6 +1160,15 @@ xray.on('exit', async () => {
   } catch { /* xray's own 'exit' event will fire again and retry, up to the cap */ }
 });
 
+// ---- App updates ----
+//
+// The manager owns the whole protocol (check, download, verify, install) and
+// publishes one status snapshot per change. Everything main.cjs contributes is
+// the two things only it can know: what the user's policy is, and how to bring
+// the machine back to a clean state before the installer runs.
+const updateManager = new UpdateManager();
+updateManager.on('status', (status) => sendToWindow('updater-status', status));
+
 app.whenReady().then(async () => {
   app.setAppUserModelId('com.kasra.soulconnection');
 
@@ -1174,19 +1188,19 @@ app.whenReady().then(async () => {
   createWindow();
   createTray();
 
-  initUpdater(mainWindow, {
-    onAvailable: (version) => notify(
+  updateManager.configure({
+    app,
+    getMode: () => getSettings().autoUpdateMode,
+    notify: (version) => notify(
       'نسخه‌ی جدید موجود است',
-      `Soul Connection ${version} منتشر شد. برای دانلود و نصب، برنامه را باز کنید.`
+      `Soul Connection ${version} منتشر شد و در حال آماده‌سازی است.`
     ),
-    onReadyToInstall: installUpdate,
+    beforeInstall: prepareForInstall,
+    log: (msg) => { if (process.env.SC_DEBUG) console.log(msg); },
   });
-  if (app.isPackaged) {
-    // One check shortly after launch, then every 6 hours, so a release that
-    // lands while the app is sitting in the tray still reaches the user.
-    setTimeout(() => checkForUpdates().catch(() => {}), 5000);
-    setInterval(() => checkForUpdates().catch(() => {}), 6 * 60 * 60 * 1000);
-  }
+  // Only a packaged build has a real release to compare itself against; in
+  // development the version in package.json is whatever is being worked on.
+  if (app.isPackaged) updateManager.start();
 
   const settings = getSettings();
   app.setLoginItemSettings({ openAtLogin: !!settings.launchOnStartup });
@@ -1237,6 +1251,10 @@ app.whenReady().then(async () => {
     .then((n) => { if (n && process.env.SC_DEBUG) console.log(`[tun] removed ${n} stale route(s)`); })
     .catch(() => {});
 
+  // If this launch is the one right after an update installed itself, put the
+  // user back on the server they were using.
+  resumeAfterUpdateIfNeeded();
+
   if (settings.runLocalProxyOnStartup) {
     const profileId = store.get('activeProfileId');
     if (profileId && findProfile(profileId)) {
@@ -1253,20 +1271,28 @@ app.whenReady().then(async () => {
   });
 });
 
-// Hand off to the NSIS installer, but only once the machine is back in a
-// clean state. The installer replaces the app's files and restarts it, so
+// Bring the machine back to a clean state, then let the update manager spawn
+// the installer. The installer replaces the app's files and restarts it, so
 // anything still live at that moment is a problem: an xray process holding
 // the proxy port, a WinINET system-proxy pointing at 127.0.0.1, or a Kill
-// Switch firewall rule would all outlive the app that owns them. Tear the
-// tunnel down first, persist the store synchronously, and only then quit.
-let installingUpdate = false;
-async function installUpdate() {
-  // Reachable from two directions -- the card's one-click flow and the button
-  // in Settings -- and the teardown below is async, so without this a second
-  // click during the disconnect would spawn setup.exe twice.
-  if (installingUpdate) return;
-  installingUpdate = true;
+// Switch firewall rule would all outlive the app that owns them.
+//
+// The one thing the user should not lose to an update is their connection, so
+// an active session is recorded first and picked up again by the new version
+// on its first launch (see RESUME_KEY below).
+const RESUME_KEY = 'resumeAfterUpdate';
+
+async function prepareForInstall() {
   isQuitting = true;
+
+  if (connectionState !== 'disconnected') {
+    store.set(RESUME_KEY, {
+      profileId: store.get('activeProfileId', null),
+      soul: store.get('soulModeEnabled', false),
+      at: Date.now(),
+    });
+  }
+
   try {
     if (connectionState !== 'disconnected') {
       await serialize(disconnect);
@@ -1281,9 +1307,38 @@ async function installUpdate() {
   // Belt and braces -- if the tunnel teardown above threw partway, make sure
   // the system proxy isn't left pointing at a port nothing is listening on.
   await systemProxyController.withdrawForShutdown();
+  try { await tunNetwork.teardown(); } catch { /* nothing left to tear down */ }
 
   store.flush();
-  quitAndInstall();
+}
+
+// The manager spawns a detached installer and then this fires: the running exe
+// has to release its own files before NSIS can replace them. app.exit() skips
+// the will-quit teardown, which has already run above.
+updateManager.on('handoff', () => {
+  setTimeout(() => app.exit(0), 400);
+});
+
+// Consumed once, on the first launch of the version that was just installed.
+// Only honoured if the handoff was recent -- an update the user walked away
+// from for a day should not silently reconnect them a day later.
+function resumeAfterUpdateIfNeeded() {
+  const resume = store.get(RESUME_KEY, null);
+  if (!resume) return;
+  store.set(RESUME_KEY, null);
+  if (!resume.profileId || Date.now() - (resume.at || 0) > 30 * 60 * 1000) return;
+  if (getSettings().runLocalProxyOnStartup) return; // startup already handles it
+
+  setTimeout(() => {
+    if (connectionState !== 'disconnected') return;
+    if (resume.soul && soulPool.find(resume.profileId)) {
+      connectBestSoul().catch(() => {});
+      return;
+    }
+    if (findProfile(resume.profileId)) {
+      serialize(() => connect(resume.profileId)).catch(() => {});
+    }
+  }, 2500);
 }
 
 app.on('before-quit', () => {
@@ -1324,6 +1379,11 @@ app.on('will-quit', (e) => {
       ]);
     } catch { /* fall through -- quitting must happen regardless */ } finally {
       try { store.flush(); } catch { /* ignore */ }
+      // The quietest possible moment to apply an update that is already
+      // downloaded and verified: the user is closing the app anyway, so the
+      // installer runs silently behind them and the next launch is simply the
+      // new version. No relaunch, no interruption, nothing to click.
+      try { updateManager.installOnQuit(); } catch { /* never block the quit */ }
       app.quit();
     }
   })();
@@ -1839,6 +1899,8 @@ ipcMain.handle('settings:update', async (_e, patch) => {
       if (typeof value !== 'boolean') continue;
     } else if (key === 'subAutoUpdateInterval') {
       if (typeof value !== 'number' || !Number.isFinite(value) || value < 0) continue;
+    } else if (key === 'autoUpdateMode') {
+      if (!UPDATE_MODES.has(value)) continue;
     } else if (key === 'xrayLogLevel') {
       if (!LOG_LEVELS.has(value)) continue;
     } else if (key === 'routingMode') {
@@ -1979,10 +2041,17 @@ ipcMain.handle('app:getInfo', () => ({
   electron: process.versions.electron,
 }));
 
-ipcMain.handle('updater:check', () => checkForUpdates());
-ipcMain.handle('updater:download', () => downloadUpdate());
-ipcMain.handle('updater:downloadAndInstall', () => downloadAndInstall());
-ipcMain.handle('updater:install', () => installUpdate());
+// Every handler answers with the same status snapshot the 'updater-status'
+// channel pushes, so the renderer has exactly one shape to understand and a
+// freshly opened window can seed itself with updater:state.
+ipcMain.handle('updater:state', () => updateManager.getState());
+ipcMain.handle('updater:check', () => updateManager.check({ manual: true }));
+ipcMain.handle('updater:download', () => updateManager.download({ install: false }));
+ipcMain.handle('updater:downloadAndInstall', () => updateManager.download({ install: true }));
+ipcMain.handle('updater:install', () => updateManager.install({ auto: false }));
+ipcMain.handle('updater:cancelDownload', () => updateManager.cancelDownload());
+ipcMain.handle('updater:cancelAutoInstall', () => updateManager.cancelAutoInstall());
+ipcMain.handle('updater:openFolder', () => updateManager.openFolder());
 
 ipcMain.handle('profiles:resetUsage', (_e, id) => {
   const profiles = store.get('profiles', []);

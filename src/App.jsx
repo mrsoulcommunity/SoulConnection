@@ -9,69 +9,12 @@ import SoulPoolEntry from './components/SoulPoolEntry.jsx';
 import RoutingRules from './components/RoutingRules.jsx';
 import { FailoverStatus } from './components/FailoverSettings.jsx';
 import TunnelStatus from './components/TunnelStatus.jsx';
+import UpdateCard from './components/UpdateCard.jsx';
 import Icon from './components/Icon.jsx';
 import { loadSession, saveSession, clearSession } from './utils/sessionState.js';
 import { pingMs, toEntry } from './utils/ping.js';
 
 const PING_CONCURRENCY = 12;
-
-// Update card, pinned to the bottom of the sidebar just above "افزودن کانفیگ".
-// The About section in Settings exposes the same actions, but a release has to
-// reach someone who never opens Settings -- so it surfaces here, in the corner
-// the eye already returns to, until acted on or dismissed.
-//
-// One click does the whole thing: download, then install and relaunch. Once
-// that click lands the card becomes a progress readout and stops being
-// clickable, so there's no way to fire a second install mid-flight.
-function UpdateCard({ status, version, percent, onUpdate, onDismiss }) {
-  const downloading = status === 'downloading';
-  const installing = status === 'installing' || status === 'downloaded';
-  const failed = status === 'error';
-  const busy = downloading || installing;
-  const pct = Math.min(100, Math.max(0, Math.round(percent || 0)));
-
-  const hint = installing
-    ? 'در حال نصب… برنامه بسته و دوباره باز می‌شود'
-    : downloading
-      ? `در حال دانلود… ${pct}٪`
-      : failed
-        ? 'دانلود ناموفق بود — برای تلاش دوباره کلیک کنید'
-        : 'برای به‌روزرسانی خودکار کلیک کنید';
-
-  return (
-    <div className={`update-card ${busy ? 'busy' : ''} ${failed ? 'failed' : ''}`}>
-      <button
-        type="button"
-        className="update-card-main"
-        onClick={busy ? undefined : onUpdate}
-        disabled={busy}
-        title={busy ? hint : `به‌روزرسانی به نسخه‌ی ${version}`}
-      >
-        <span className="update-card-glyph">
-          <Icon name={installing ? 'refresh' : failed ? 'refresh' : 'arrowDown'} size={15} />
-        </span>
-        <span className="update-card-text">
-          <span className="update-card-title">
-            {busy ? `نسخه‌ی ${version}` : `نسخه‌ی ${version} موجود است`}
-          </span>
-          <span className="update-card-hint">{hint}</span>
-        </span>
-      </button>
-
-      {downloading && (
-        <div className="update-card-progress" role="progressbar" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100}>
-          <div className="update-card-progress-fill" style={{ width: `${pct}%` }} />
-        </div>
-      )}
-
-      {!busy && (
-        <button className="update-card-dismiss" onClick={onDismiss} title="بعداً یادآوری کن">
-          <Icon name="close" size={12} />
-        </button>
-      )}
-    </div>
-  );
-}
 
 // Custom chrome for the frameless window. Standard Windows layout: app
 // icon/name at the top-left, minimize/maximize/close at the top-right in
@@ -124,9 +67,10 @@ export default function App() {
   const [traffic, setTraffic] = useState(null);
   const [settings, setSettings] = useState(null);
   const [appInfo, setAppInfo] = useState(null);
+  // One snapshot of the whole update protocol, pushed by the main process on
+  // every change. Nothing about updates is tracked separately in the renderer
+  // -- there is one source of truth and it lives in electron/lib/update.
   const [updaterStatus, setUpdaterStatus] = useState(null);
-  // Version carried across the whole download flow: only 'available' and
-  // 'downloaded' events carry it, 'downloading' progress events don't.
   // Soul Connection pool: `soulMode` is the selection, `soulProgress` is the
   // live sweep readout (null whenever nothing is running).
   const [soulMode, setSoulMode] = useState(false);
@@ -134,8 +78,9 @@ export default function App() {
   const [soulProgress, setSoulProgress] = useState(null);
   const [activeSoulProfile, setActiveSoulProfile] = useState(null);
   const [soulRefreshing, setSoulRefreshing] = useState(false);
-  const [pendingUpdate, setPendingUpdate] = useState(null);
-  const [updateDismissed, setUpdateDismissed] = useState(false);
+  // The version the sidebar card was dismissed for. Kept per-version so a
+  // later release re-opens the card instead of inheriting an old "not now".
+  const [updateDismissed, setUpdateDismissed] = useState(null);
   const [pings, setPings] = useState({});
   const [showAdd, setShowAdd] = useState(false);
   // Seeded eagerly (before `settings` loads) from whatever was last saved --
@@ -318,19 +263,10 @@ export default function App() {
     const offTraffic = window.soul.onTrafficUpdate((data) => setTraffic(data));
     const offProfiles = window.soul.onProfilesChanged(() => refresh());
     const offOpenSettings = window.soul.onOpenSettings(() => setTab('settings'));
-    const offUpdater = window.soul.onUpdaterStatus((s) => {
-      setUpdaterStatus(s);
-      if (s.status === 'available' || s.status === 'downloaded') {
-        setPendingUpdate(s.version);
-        // A check that turns up a release re-opens the card even if an
-        // earlier one was dismissed -- the user asked for this answer.
-        setUpdateDismissed(false);
-      } else if (s.status === 'not-available') {
-        // The release this card was offering is gone (pulled, or already
-        // installed) -- drop it rather than leave a dead offer on screen.
-        setPendingUpdate(null);
-      }
-    });
+    // Seed from the current state so a window opened mid-download shows the
+    // download, then follow the push channel.
+    window.soul.updaterState?.().then((s) => { if (s) setUpdaterStatus(s); }).catch(() => {});
+    const offUpdater = window.soul.onUpdaterStatus((s) => setUpdaterStatus(s));
     return () => {
       offState(); offLatency(); offTraffic(); offProfiles(); offOpenSettings(); offUpdater();
       if (offSoul) offSoul();
@@ -804,6 +740,19 @@ export default function App() {
     [profiles, activeProfileId, activeSoulProfile]
   );
 
+  // The sidebar card appears for every state that has something to say about a
+  // specific release, and only that. A dismissal silences the offer, but never
+  // a download that is already running or an install waiting to happen -- those
+  // are in flight and the user needs to be able to see and stop them.
+  const updateOffered = (() => {
+    const s = updaterStatus?.status;
+    if (!s || !updaterStatus.version) return false;
+    if (['downloading', 'verifying', 'installing'].includes(s)) return true;
+    if (s === 'ready') return true;
+    if (s === 'available' || s === 'error') return updateDismissed !== updaterStatus.version;
+    return false;
+  })();
+
   return (
     <div className={`app-shell ${windowMaximized ? 'maximized' : ''}`}>
       <TitleBar
@@ -864,13 +813,14 @@ export default function App() {
             onSessionChange={handleSessionChange}
           />
 
-          {pendingUpdate && !updateDismissed && (
+          {updateOffered && (
             <UpdateCard
-              status={updaterStatus?.status}
-              version={pendingUpdate}
-              percent={updaterStatus?.percent}
-              onUpdate={() => window.soul.downloadAndInstall()}
-              onDismiss={() => setUpdateDismissed(true)}
+              update={updaterStatus}
+              onDownload={() => window.soul.downloadAndInstall()}
+              onInstall={() => window.soul.installUpdate()}
+              onCancelDownload={() => window.soul.cancelUpdateDownload?.()}
+              onCancelAuto={() => window.soul.cancelAutoInstall?.()}
+              onDismiss={() => setUpdateDismissed(updaterStatus?.version || null)}
             />
           )}
 
@@ -963,7 +913,11 @@ export default function App() {
                   updaterStatus={updaterStatus}
                   onCheckForUpdates={() => window.soul.checkForUpdates()}
                   onDownloadUpdate={() => window.soul.downloadUpdate()}
+                  onDownloadAndInstall={() => window.soul.downloadAndInstall()}
                   onInstallUpdate={() => window.soul.installUpdate()}
+                  onCancelUpdateDownload={() => window.soul.cancelUpdateDownload?.()}
+                  onCancelAutoInstall={() => window.soul.cancelAutoInstall?.()}
+                  onOpenUpdateFolder={() => window.soul.openUpdateFolder?.()}
                   onUpdate={handleUpdateSettings}
                   onUpdateChecked={handleUpdateSettingsChecked}
                   onOpenLogsFolder={() => window.soul.openLogsFolder()}

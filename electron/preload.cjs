@@ -29,10 +29,17 @@ contextBridge.exposeInMainWorld('soul', {
   updateSettings: (patch) => ipcRenderer.invoke('settings:update', patch),
   openLogsFolder: () => ipcRenderer.invoke('app:openLogsFolder'),
   getAppInfo: () => ipcRenderer.invoke('app:getInfo'),
+  // ---- App updates ----
+  // Every call resolves to the same status snapshot that arrives on
+  // onUpdaterStatus, so the renderer only ever handles one shape.
+  updaterState: () => ipcRenderer.invoke('updater:state'),
   checkForUpdates: () => ipcRenderer.invoke('updater:check'),
   downloadUpdate: () => ipcRenderer.invoke('updater:download'),
   downloadAndInstall: () => ipcRenderer.invoke('updater:downloadAndInstall'),
   installUpdate: () => ipcRenderer.invoke('updater:install'),
+  cancelUpdateDownload: () => ipcRenderer.invoke('updater:cancelDownload'),
+  cancelAutoInstall: () => ipcRenderer.invoke('updater:cancelAutoInstall'),
+  openUpdateFolder: () => ipcRenderer.invoke('updater:openFolder'),
   exportBackup: () => ipcRenderer.invoke('app:exportBackup'),
   importBackup: () => ipcRenderer.invoke('app:importBackup'),
   saveImage: (dataUrl, defaultName) => ipcRenderer.invoke('app:saveImage', { dataUrl, defaultName }),

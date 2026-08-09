@@ -42,7 +42,10 @@ reinstall.
 - **Live stats** — real-time upload/download speed and per-server lifetime usage, via Xray's gRPC
   stats API.
 - **Auto-reconnect** — detects an unexpected tunnel drop and retries with backoff.
-- **Auto-update** — checks GitHub Releases and installs new versions in place.
+- **Auto-update** — checks GitHub Releases, downloads the new installer with live speed and ETA,
+  verifies its SHA-512, and installs it silently after a cancellable countdown. Downloads are
+  resumable and land in an `Updates` folder beside the app, so declining the automatic install
+  leaves a ready-to-run setup file rather than nothing.
 - **Tray integration** — quick connect/disconnect and server switching without opening the window.
 - **Backup & restore** — export and import all profiles, subscriptions, and settings as JSON.
 - **QR sharing** — render any config as a QR code to copy or save.
