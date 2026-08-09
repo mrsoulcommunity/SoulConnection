@@ -1,5 +1,6 @@
 'use strict';
 const net = require('net');
+const shield = require('./shield/profiles.cjs');
 
 // A bare IP needs no DNS entry and is matched by an `ip` rule rather than a
 // `domain` one -- the distinction decides how the server gets pinned outside
@@ -226,11 +227,30 @@ function tunInbound() {
 // Smart Routing compiled for us, and the optional stats API.
 function assemble(profile, opts, inbounds) {
   const tunMode = opts.mode === 'tun';
+  const proxyOut = { ...buildOutbound(profile), tag: 'proxy' };
+
+  // ---- Adaptive Shield ----
+  //
+  // The anti-DPI treatment is not applied to the proxy outbound itself: it has
+  // to wrap the socket the proxy dials on, underneath the protocol. xray
+  // expresses that with sockopt.dialerProxy -- the proxy hands its connection
+  // to a Freedom outbound, and that outbound is the one carrying `fragment`
+  // and `noises`. Chaining it this way is what lets the same treatment work
+  // for vless, vmess and trojan alike without any of them knowing about it.
+  const shieldDialer = shield.appliesTo(profile) ? shield.dialerOutbound(opts.shield) : null;
+  if (shieldDialer) {
+    proxyOut.streamSettings = {
+      ...proxyOut.streamSettings,
+      sockopt: { ...(proxyOut.streamSettings && proxyOut.streamSettings.sockopt), dialerProxy: shield.DIALER_TAG },
+    };
+  }
+
   const outbounds = [
-    { ...buildOutbound(profile), tag: 'proxy' },
+    proxyOut,
     { protocol: 'freedom', tag: 'direct', settings: {} },
     { protocol: 'blackhole', tag: 'block', settings: {} },
   ];
+  if (shieldDialer) outbounds.push(shieldDialer);
 
   // Falls back to the historical behaviour (LAN direct, everything else
   // through the tunnel) when no routing policy was supplied.

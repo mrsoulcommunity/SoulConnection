@@ -168,14 +168,17 @@ async function pingStats(profile, opts = {}) {
 // collide with the live session (ports 10808+) or with each other.
 let nextTestPortBase = 24000;
 
-async function startTestTunnel(profile, { xrayBin, xrayAssetDir, workRoot, signal }) {
+// `shield` names an anti-DPI treatment from lib/shield/profiles.cjs. It is
+// threaded through rather than baked in because the tuner's whole job is to
+// stand up the *same* server under different treatments and compare them.
+async function startTestTunnel(profile, { xrayBin, xrayAssetDir, workRoot, signal, shield }) {
   throwIfAborted(signal);
   const base = nextTestPortBase;
   nextTestPortBase = base + 4 > 29000 ? 24000 : base + 4;
   const socksPort = await findFreePort(base);
   const httpPort = await findFreePort(socksPort + 1);
   const workDir = path.join(workRoot, `test-${socksPort}-${Date.now()}`);
-  const config = buildXrayConfig(profile, { socksPort, httpPort, mode: 'proxy', logLevel: 'warning' });
+  const config = buildXrayConfig(profile, { socksPort, httpPort, mode: 'proxy', logLevel: 'warning', shield });
 
   const xp = new XrayProcess(xrayBin, workDir, xrayAssetDir);
   const bootStart = Date.now();
@@ -506,4 +509,10 @@ async function speedTest(profile, { xrayBin, xrayAssetDir, workRoot, signal, emi
   }
 }
 
-module.exports = { begin, end, cancel, pingStats, tcpPingStats, realPing, speedTest };
+// startTestTunnel/probeViaProxy are exported for lib/shield/tuner.cjs, which
+// needs exactly this pair -- stand a tunnel up, push real requests through it --
+// but under each candidate treatment instead of once.
+module.exports = {
+  begin, end, cancel, pingStats, tcpPingStats, realPing, speedTest,
+  startTestTunnel, probeViaProxy,
+};

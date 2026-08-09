@@ -32,6 +32,18 @@ contextBridge.exposeInMainWorld('soul', {
   // ---- App updates ----
   // Every call resolves to the same status snapshot that arrives on
   // onUpdaterStatus, so the renderer only ever handles one shape.
+  // ---- Adaptive Shield ----
+  shieldState: (profileId) => ipcRenderer.invoke('shield:state', profileId),
+  shieldTune: (profileId) => ipcRenderer.invoke('shield:tune', profileId),
+  shieldCancel: () => ipcRenderer.invoke('shield:cancel'),
+  shieldClear: () => ipcRenderer.invoke('shield:clear'),
+  shieldSetManualKey: (key) => ipcRenderer.invoke('shield:setManualKey', key),
+  onShieldProgress: (cb) => {
+    const h = (_e, p) => cb(p);
+    ipcRenderer.on('shield-progress', h);
+    return () => ipcRenderer.removeListener('shield-progress', h);
+  },
+
   updaterState: () => ipcRenderer.invoke('updater:state'),
   checkForUpdates: () => ipcRenderer.invoke('updater:check'),
   downloadUpdate: () => ipcRenderer.invoke('updater:download'),

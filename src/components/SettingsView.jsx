@@ -5,6 +5,7 @@ import { Section, Toggle } from './settingsPrimitives.jsx';
 import NetworkSettings from './NetworkSettings.jsx';
 import FailoverSettings from './FailoverSettings.jsx';
 import UpdatePanel from './UpdatePanel.jsx';
+import ShieldPanel from './ShieldPanel.jsx';
 
 const INTERVAL_OPTIONS = [
   { value: 0, label: 'خاموش' },
@@ -23,6 +24,7 @@ export default function SettingsView({
   settings, connectionState, profiles, appInfo, systemProxy,
   updaterStatus, onCheckForUpdates, onDownloadUpdate, onDownloadAndInstall, onInstallUpdate,
   onCancelUpdateDownload, onCancelAutoInstall, onOpenUpdateFolder,
+  shield, shieldProgress, onShieldTune, onShieldCancel, onShieldClear, onShieldManualKey,
   onUpdate, onUpdateChecked, onOpenLogsFolder,
   onExportBackup, onImportBackup, onResetUsage, onResetAllUsage,
   onSystemProxySetDesired, onSystemProxySync, onOpenProxyFolder, onResetNetworkDefaults,
@@ -185,6 +187,17 @@ export default function SettingsView({
           </button>
         </div>
       </Section>
+
+      <ShieldPanel
+        shield={shield}
+        mode={settings.shieldMode || 'auto'}
+        progress={shieldProgress}
+        onTune={onShieldTune}
+        onCancel={onShieldCancel}
+        onClear={onShieldClear}
+        onModeChange={(v) => onUpdate({ shieldMode: v })}
+        onManualKeyChange={onShieldManualKey}
+      />
 
       <UpdatePanel
         appInfo={appInfo}

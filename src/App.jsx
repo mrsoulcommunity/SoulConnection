@@ -71,6 +71,11 @@ export default function App() {
   // every change. Nothing about updates is tracked separately in the renderer
   // -- there is one source of truth and it lives in electron/lib/update.
   const [updaterStatus, setUpdaterStatus] = useState(null);
+  // Adaptive Shield: `shield` is the settled state (mode, active treatment,
+  // last measurement) and `shieldProgress` is the live sweep, which only
+  // exists while a tune is running.
+  const [shield, setShield] = useState(null);
+  const [shieldProgress, setShieldProgress] = useState(null);
   // Soul Connection pool: `soulMode` is the selection, `soulProgress` is the
   // live sweep readout (null whenever nothing is running).
   const [soulMode, setSoulMode] = useState(false);
@@ -267,8 +272,19 @@ export default function App() {
     // download, then follow the push channel.
     window.soul.updaterState?.().then((s) => { if (s) setUpdaterStatus(s); }).catch(() => {});
     const offUpdater = window.soul.onUpdaterStatus((s) => setUpdaterStatus(s));
+
+    window.soul.shieldState?.().then((s) => { if (s) setShield(s); }).catch(() => {});
+    const offShield = window.soul.onShieldProgress?.((p) => {
+      setShieldProgress(p);
+      // The sweep finishing is also when the stored choice changes, so re-read
+      // the settled state rather than trying to derive it from the event.
+      if (p.phase === 'done' || !p.running) {
+        window.soul.shieldState?.().then((s) => { if (s) setShield(s); }).catch(() => {});
+      }
+    });
     return () => {
       offState(); offLatency(); offTraffic(); offProfiles(); offOpenSettings(); offUpdater();
+      if (offShield) offShield();
       if (offSoul) offSoul();
       if (offRouting) offRouting();
       if (offHealth) offHealth();
@@ -918,6 +934,21 @@ export default function App() {
                   onCancelUpdateDownload={() => window.soul.cancelUpdateDownload?.()}
                   onCancelAutoInstall={() => window.soul.cancelAutoInstall?.()}
                   onOpenUpdateFolder={() => window.soul.openUpdateFolder?.()}
+                  shield={shield}
+                  shieldProgress={shieldProgress}
+                  onShieldTune={async () => {
+                    try {
+                      setShieldProgress({ running: true, phase: 'start' });
+                      setShield(await window.soul.shieldTune());
+                    } catch (err) {
+                      showToast(err.message || 'سنجش انجام نشد', 'error');
+                    } finally {
+                      setShieldProgress(null);
+                    }
+                  }}
+                  onShieldCancel={() => window.soul.shieldCancel?.()}
+                  onShieldClear={async () => setShield(await window.soul.shieldClear())}
+                  onShieldManualKey={async (k) => setShield(await window.soul.shieldSetManualKey(k))}
                   onUpdate={handleUpdateSettings}
                   onUpdateChecked={handleUpdateSettingsChecked}
                   onOpenLogsFolder={() => window.soul.openLogsFolder()}

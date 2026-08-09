@@ -33,6 +33,7 @@ const DEFAULT_SETTINGS = {
   killSwitchEnabled: false,
   subAutoUpdateInterval: 0,
   autoUpdateMode: 'auto',
+  shieldMode: 'auto',
   xrayLogLevel: 'warning',
   socksPort: 10808,
   httpPort: 10809,
@@ -99,7 +100,7 @@ export function installDevMock() {
     killSwitchBlocking: false,
   };
   let killSwitchArmed = false;
-  const listeners = { state: [], latency: [], traffic: [], profiles: [], settings: [], updater: [], test: [], proxyLog: [], soul: [], routing: [], health: [], failover: [], tunnel: [], systemProxy: [] };
+  const listeners = { state: [], latency: [], traffic: [], profiles: [], settings: [], updater: [], test: [], proxyLog: [], soul: [], routing: [], health: [], failover: [], tunnel: [], systemProxy: [], shield: [] };
 
   // Smart Routing / health / failover, mocked well enough to drive the whole
   // screen: rules round-trip through the same normalization shape the main
@@ -195,6 +196,7 @@ export function installDevMock() {
   };
   const emitSoul = (payload) => listeners.soul.forEach((fn) => fn(payload));
   const emitUpdater = (payload) => listeners.updater.forEach((fn) => fn(payload));
+  const emitShield = (payload) => listeners.shield.forEach((fn) => fn(payload));
 
   // ---- update protocol mock ----
   //
@@ -224,6 +226,15 @@ export function installDevMock() {
   };
   let updateTimer = null;
   let updateCancelled = false;
+
+  // ---- shield mock state ----
+  let shieldBlocked = false;
+  let shieldCancelled = false;
+  let shieldState = {
+    mode: 'auto', manualKey: 'off', running: false, runningFor: null,
+    activeKey: 'off', activeLabel: 'بدون تغییر', applicable: true,
+    choice: null, network: 'devmock',
+  };
 
   const patchUpdate = (patch) => {
     updateState = { ...updateState, ...patch };
@@ -626,6 +637,53 @@ export function installDevMock() {
     copyImage: async () => true,
     resetUsage: async () => profiles,
     resetAllUsage: async () => profiles,
+    // ---- Adaptive Shield ----
+    // Walks the same sweep the real tuner does, including the "clean network"
+    // short-circuit, so the panel's two very different outcomes -- a fast
+    // all-clear and a full six-candidate sweep on a blocked network -- can both
+    // be looked at. `window.soul.mockShieldBlocked(true)` picks which.
+    shieldState: async () => ({ ...shieldState }),
+    shieldTune: async () => {
+      const keys = ['off', 'tlshello-fine', 'tlshello-wide', 'stream', 'noise', 'combo'];
+      shieldCancelled = false;
+      const results = [];
+      for (let i = 0; i < keys.length; i += 1) {
+        if (shieldCancelled) break;
+        const key = keys[i];
+        emitShield({ running: true, phase: 'candidate', key, index: i, total: keys.length });
+        for (let p = 1; p <= 5; p += 1) {
+          if (shieldCancelled) break;
+          await new Promise((r) => setTimeout(r, 90));
+          emitShield({ running: true, phase: 'probe', key, done: p, total: 5 });
+        }
+        // On a "blocked" network plain dies and the TLS slicers get through.
+        const blocked = shieldBlocked && (key === 'off' || key === 'stream');
+        const loss = blocked ? 100 : key === 'noise' ? 20 : 0;
+        const latency = blocked ? null : 180 + Math.round(Math.random() * 220) + (key === 'combo' ? 90 : 0);
+        const r = { key, ok: !blocked, loss, latency, score: blocked ? 0 : Math.max(10, 90 - Math.round((latency - 180) / 6) - loss) };
+        results.push(r);
+        emitShield({ running: true, phase: 'result', result: r });
+        if (key === 'off' && !shieldBlocked) break; // clean-network short-circuit
+      }
+      const usable = results.filter((r) => r.ok);
+      const best = shieldBlocked
+        ? (usable.sort((a, b) => b.score - a.score)[0] || { key: 'off' }).key
+        : 'off';
+      shieldState = {
+        ...shieldState,
+        activeKey: best,
+        activeLabel: best,
+        running: false,
+        choice: { key: best, at: Date.now(), reason: shieldBlocked ? 'measured' : 'clean-network', results },
+      };
+      emitShield({ running: false, phase: 'done', best, results });
+      return { ...shieldState };
+    },
+    shieldCancel: async () => { shieldCancelled = true; emitShield({ running: false, phase: 'done' }); return true; },
+    shieldClear: async () => { shieldState = { ...shieldState, choice: null, activeKey: 'off' }; return { ...shieldState }; },
+    shieldSetManualKey: async (key) => { shieldState = { ...shieldState, manualKey: key }; return { ...shieldState }; },
+    mockShieldBlocked: (v) => { shieldBlocked = !!v; return shieldBlocked; },
+
     updaterState: async () => ({ ...updateState }),
     checkForUpdates: async () => {
       patchUpdate({ status: 'checking', error: null });
@@ -824,6 +882,7 @@ export function installDevMock() {
     onProfilesChanged: on('profiles'),
     onOpenSettings: on('settings'),
     onUpdaterStatus: on('updater'),
+    onShieldProgress: on('shield'),
     onTestEvent: on('test'),
 
     soulList: async (force) => {

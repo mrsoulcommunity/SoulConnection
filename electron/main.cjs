@@ -33,6 +33,8 @@ const { findFreePort } = require('./lib/freePort.cjs');
 const { isElevated, relaunchElevated } = require('./lib/elevation.cjs');
 const { StatsClient } = require('./lib/statsApi.cjs');
 const { UpdateManager, MODES: UPDATE_MODES } = require('./lib/update/index.cjs');
+const { ShieldManager, MODES: SHIELD_MODES } = require('./lib/shield/index.cjs');
+const { isKnown: isShieldKey } = require('./lib/shield/profiles.cjs');
 const { SoulPool } = require('./lib/soulPool.cjs');
 const routingRulesLib = require('./lib/routing/rules.cjs');
 const { compileRoutingRules } = require('./lib/routing/xrayRouting.cjs');
@@ -68,6 +70,10 @@ const DEFAULT_SETTINGS = {
   // Updates folder and waits; 'notify' does nothing until asked. See
   // lib/update/index.cjs.
   autoUpdateMode: 'auto',
+  // Adaptive Shield. 'auto' measures which anti-DPI treatment this network
+  // needs and applies it per server; 'manual' pins one for everything; 'off'
+  // disables it. See lib/shield/.
+  shieldMode: 'auto',
   xrayLogLevel: 'warning',
   socksPort: SOCKS_PORT, // preferred; auto-bumped to the next free port if taken
   httpPort: HTTP_PORT,
@@ -938,6 +944,9 @@ async function connect(profileId) {
       socksAccounts: settings.socksUsername ? [{ user: settings.socksUsername, pass: settings.socksPassword || '' }] : undefined,
       httpAccounts: settings.httpUsername ? [{ user: settings.httpUsername, pass: settings.httpPassword || '' }] : undefined,
       routingRules,
+      // Whatever the shield measured for this server on this network. Plain
+      // until a tune has run, so a first connect is never delayed by it.
+      shield: shieldManager.keyFor(profile),
     };
     // Connecting starts the local proxy (xray). Whether Windows is *pointed* at
     // it is a separate, persisted user choice -- applied on success below, and
@@ -1168,6 +1177,21 @@ xray.on('exit', async () => {
 // the machine back to a clean state before the installer runs.
 const updateManager = new UpdateManager();
 updateManager.on('status', (status) => sendToWindow('updater-status', status));
+
+// ---- Adaptive Shield ----
+//
+// Owns which anti-DPI treatment each server uses on the current network, and
+// the measurement that decides it. connect() below asks it for a key; it never
+// touches the connection itself.
+const shieldManager = new ShieldManager({
+  store,
+  xrayBin,
+  xrayAssetDir,
+  workRoot: xrayWorkDir,
+  getMode: () => getSettings().shieldMode,
+  log: (msg) => { if (process.env.SC_DEBUG) console.log(msg); },
+});
+shieldManager.on('progress', (p) => sendToWindow('shield-progress', p));
 
 app.whenReady().then(async () => {
   app.setAppUserModelId('com.kasra.soulconnection');
@@ -1901,6 +1925,8 @@ ipcMain.handle('settings:update', async (_e, patch) => {
       if (typeof value !== 'number' || !Number.isFinite(value) || value < 0) continue;
     } else if (key === 'autoUpdateMode') {
       if (!UPDATE_MODES.has(value)) continue;
+    } else if (key === 'shieldMode') {
+      if (!SHIELD_MODES.has(value)) continue;
     } else if (key === 'xrayLogLevel') {
       if (!LOG_LEVELS.has(value)) continue;
     } else if (key === 'routingMode') {
@@ -2044,6 +2070,28 @@ ipcMain.handle('app:getInfo', () => ({
 // Every handler answers with the same status snapshot the 'updater-status'
 // channel pushes, so the renderer has exactly one shape to understand and a
 // freshly opened window can seed itself with updater:state.
+// ---- Adaptive Shield ----
+// `profileId` is optional everywhere: with none, the panel reports on whatever
+// is connected (or last selected), which is what the Settings view wants.
+function shieldTarget(profileId) {
+  return findProfile(profileId || store.get('activeProfileId', null));
+}
+
+ipcMain.handle('shield:state', (_e, profileId) => shieldManager.state(shieldTarget(profileId)));
+ipcMain.handle('shield:tune', async (_e, profileId) => {
+  const profile = shieldTarget(profileId);
+  if (!profile) throw new Error('اول یک سرور انتخاب کن');
+  await shieldManager.tune(profile);
+  return shieldManager.state(profile);
+});
+ipcMain.handle('shield:cancel', () => { shieldManager.cancel(); return true; });
+ipcMain.handle('shield:clear', () => { shieldManager.clear(); return shieldManager.state(shieldTarget(null)); });
+ipcMain.handle('shield:setManualKey', (_e, key) => {
+  if (!isShieldKey(key)) throw new Error('پروفایل نامعتبر است');
+  store.set('shieldManualKey', key);
+  return shieldManager.state(shieldTarget(null));
+});
+
 ipcMain.handle('updater:state', () => updateManager.getState());
 ipcMain.handle('updater:check', () => updateManager.check({ manual: true }));
 ipcMain.handle('updater:download', () => updateManager.download({ install: false }));
