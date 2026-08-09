@@ -1006,6 +1006,14 @@ async function connect(profileId) {
     // Routes must come out even when the failure happened after they went in,
     // or the machine is left routing into an adapter that no longer exists.
     await tunNetwork.teardown();
+    // And xray itself has to go. Everything after xray.start() used to be
+    // infallible, so leaving it running on failure was unreachable -- tunnel
+    // setup can genuinely fail (no adapter, netsh refused, route rejected),
+    // which made it reachable. A surviving process is not harmless: start()
+    // rejects outright while one is alive, so every later connect would fail
+    // with "Xray is already running" until the app was restarted.
+    expectedExit = xray.isRunning;
+    try { await xray.stop(); } catch { /* already gone */ }
     // A half-built session may have left Windows pointed at a port that never
     // came up.
     await syncSystemProxy('connect-failed');
