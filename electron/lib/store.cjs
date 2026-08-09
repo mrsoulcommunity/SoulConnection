@@ -15,6 +15,10 @@ class JsonStore {
     this._saveTimer = null;
     this._chain = Promise.resolve();
     this._dirty = false;
+    // Async writes that have been started but not yet renamed into place.
+    // flush() has to know about these: once the debounce timer fires, _dirty is
+    // already false even though nothing has reached the disk yet.
+    this._pending = 0;
     this._load();
   }
 
@@ -73,7 +77,11 @@ class JsonStore {
     const json = JSON.stringify(this.data);
     fs.mkdirSync(path.dirname(this.filePath), { recursive: true });
 
-    const fd = fs.openSync(this.tmpPath, 'w');
+    // A debounced async write may still be holding this.tmpPath. Both paths
+    // serialize the same in-memory data, so whichever rename lands last writes
+    // identical bytes -- but they must not share a temp file while doing it.
+    const tmpPath = `${this.filePath}.flush.tmp`;
+    const fd = fs.openSync(tmpPath, 'w');
     try {
       fs.writeFileSync(fd, json, 'utf8');
       fs.fsyncSync(fd);
@@ -87,7 +95,7 @@ class JsonStore {
       if (e.code !== 'ENOENT') console.error('Failed to refresh store backup:', e.message);
     }
 
-    fs.renameSync(this.tmpPath, this.filePath);
+    fs.renameSync(tmpPath, this.filePath);
   }
 
   async _persistAsync() {
@@ -113,11 +121,13 @@ class JsonStore {
 
   _writeNow() {
     this._dirty = false;
+    this._pending += 1;
     // Serialize on a promise chain so two saves can never interleave over the
     // same temp file.
     this._chain = this._chain
       .then(() => this._persistAsync())
-      .catch((err) => console.error('Failed to persist store:', err));
+      .catch((err) => console.error('Failed to persist store:', err))
+      .finally(() => { this._pending -= 1; });
   }
 
   get(key, fallback) {
@@ -146,7 +156,11 @@ class JsonStore {
       clearTimeout(this._saveTimer);
       this._saveTimer = null;
     }
-    if (!this._dirty) return;
+    // An async write that has started but not yet renamed into place counts as
+    // unsaved: the caller is about to end the process, and that write will not
+    // survive it. Writing again synchronously is the only way to keep the
+    // promise this method makes.
+    if (!this._dirty && this._pending === 0) return;
     this._dirty = false;
     try {
       this._persistSync();

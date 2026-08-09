@@ -386,6 +386,15 @@ function buildLink(p) {
 const CUSTOM_PROTOCOLS = new Set(['vmess', 'vless', 'trojan', 'shadowsocks']);
 const CUSTOM_NETWORKS = new Set(['tcp', 'ws', 'grpc', 'h2', 'http', 'kcp']);
 const CUSTOM_SECURITIES = new Set(['none', 'tls', 'reality']);
+// REALITY rides only RAW (tcp), gRPC and XHTTP. xray rejects the whole config
+// -- not just the outbound -- for any other pairing, so letting one be saved
+// here produces a profile that can never connect and fails with an error
+// naming a transport the user never picked. Caught at entry instead.
+//
+// h2/http are on the list because xrayConfig emits them as XHTTP stream-one
+// (the transport xray migrated them to), so REALITY reaches them intact. Only
+// WebSocket and mKCP are genuinely incompatible.
+const REALITY_NETWORKS = new Set(['tcp', 'raw', 'grpc', 'xhttp', 'splithttp', 'h2', 'http']);
 const UUID_RE = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
 const SS_METHODS = new Set([
   'aes-128-gcm', 'aes-192-gcm', 'aes-256-gcm',
@@ -417,6 +426,9 @@ function buildCustomProfile(fields) {
   let security = str(f.security) || 'none';
   if (!CUSTOM_SECURITIES.has(security)) throw new Error('نوع امنیت نامعتبر است');
   if (protocol === 'vmess' && security === 'reality') security = 'tls'; // vmess has no Reality support
+  if (security === 'reality' && !REALITY_NETWORKS.has(network)) {
+    throw new Error('Reality با WebSocket و mKCP کار نمی‌کند — از TCP، gRPC یا HTTP/2 استفاده کنید');
+  }
 
   const p = baseProfile(protocol, null);
   p.name = str(f.name, 100);

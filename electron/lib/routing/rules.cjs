@@ -130,7 +130,12 @@ function isLocalTarget(host) {
   if (!h) return false;
   if (h === 'localhost' || h.endsWith('.localhost')) return true;
   if (h === '::1' || h === '0.0.0.0' || h === '::') return true;
-  if (h.startsWith('fe80:') || h.startsWith('fc') || h.startsWith('fd')) return true;
+  // IPv6 link-local (fe80::/10) and ULA (fc00::/7 -- first byte fc or fd).
+  // The colon is what makes this an address rather than a name: without it,
+  // every hostname merely *starting* with those two letters -- fc2.com,
+  // fdroid.org, fda.gov -- was classified as LAN and forced Direct, quietly
+  // leaving the tunnel for sites the user believed were being proxied.
+  if (h.includes(':') && (h.startsWith('fe80:') || h.startsWith('fc') || h.startsWith('fd'))) return true;
 
   if (isIpv4(h)) {
     const [a, b] = h.split('.').map(Number);

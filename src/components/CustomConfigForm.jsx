@@ -21,6 +21,12 @@ const SECURITIES = [
   { value: 'reality', label: 'Reality' },
 ];
 
+// Reality rides only RAW (tcp), gRPC and XHTTP -- and h2, which the config
+// builder emits as XHTTP stream-one. On WebSocket and mKCP xray refuses the
+// whole config, so the option is withheld rather than offered and then
+// rejected on save. Mirrors REALITY_NETWORKS in electron/lib/parsers.cjs.
+const REALITY_NETWORKS = new Set(['tcp', 'grpc', 'h2']);
+
 const SS_METHODS = [
   'aes-128-gcm', 'aes-192-gcm', 'aes-256-gcm',
   'chacha20-ietf-poly1305', 'chacha20-poly1305', 'xchacha20-ietf-poly1305',
@@ -108,7 +114,8 @@ export default function CustomConfigForm({ onSubmit, onCancel }) {
   const showPathHost = network === 'ws' || network === 'h2' || (network === 'tcp' && fields.headerType === 'http');
   const showServiceName = network === 'grpc';
   const showHeaderType = network === 'tcp' || network === 'kcp';
-  const securityOptions = protocol === 'vmess' ? SECURITIES.filter((s) => s.value !== 'reality') : SECURITIES;
+  const realityAllowed = protocol !== 'vmess' && REALITY_NETWORKS.has(network);
+  const securityOptions = realityAllowed ? SECURITIES : SECURITIES.filter((s) => s.value !== 'reality');
 
   function validateClientSide() {
     if (!fields.address.trim()) return 'آدرس سرور را وارد کن';
@@ -210,7 +217,22 @@ export default function CustomConfigForm({ onSubmit, onCancel }) {
       {protocol !== 'shadowsocks' && (
         <Group title="حمل و نقل (Transport)">
           <Field label="Network Type">
-            <select className="setting-select" value={network} onChange={(e) => set({ network: e.target.value, headerType: 'none' })}>
+            <select
+              className="setting-select"
+              value={network}
+              onChange={(e) => {
+                const next = e.target.value;
+                // Switching to a transport Reality cannot ride has to move the
+                // security field with it, or the select would show "TLS" while
+                // the state still said "reality" and the save would fail.
+                const keepsReality = protocol !== 'vmess' && REALITY_NETWORKS.has(next);
+                set({
+                  network: next,
+                  headerType: 'none',
+                  security: security === 'reality' && !keepsReality ? 'tls' : security,
+                });
+              }}
+            >
               {NETWORKS.map((n) => <option key={n.value} value={n.value}>{n.label}</option>)}
             </select>
           </Field>

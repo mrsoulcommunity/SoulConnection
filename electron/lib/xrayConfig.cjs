@@ -57,9 +57,20 @@ function streamSettings(p) {
     case 'grpc':
       s.grpcSettings = { serviceName: p.serviceName || '', multiMode: p.mode === 'multi' };
       break;
+    // The standalone HTTP/2 transport was removed in xray 26 and folded into
+    // XHTTP as its "stream-one" mode. Emitting the old `httpSettings` makes
+    // xray reject the whole config, so every h2/http profile failed to connect
+    // with an error that named a transport the user never chose. This is the
+    // migration xray's own error message points at, and it is wire-compatible
+    // with the h2 servers these profiles were written for.
     case 'h2':
     case 'http':
-      s.httpSettings = { path: p.path || '/', host: p.host ? [p.host] : [] };
+      s.network = 'xhttp';
+      s.xhttpSettings = {
+        path: p.path || '/',
+        host: p.host || undefined,
+        mode: 'stream-one',
+      };
       break;
     case 'tcp':
       if (p.headerType === 'http') {
@@ -71,9 +82,17 @@ function streamSettings(p) {
         };
       }
       break;
-    case 'kcp':
-      s.kcpSettings = { header: { type: p.headerType || 'none' } };
+    // mKCP's `header.type` was removed in xray 26; the same packet
+    // obfuscation now lives under `finalmask` as "udp header-<type>". The old
+    // key is a hard config error rather than an ignored one, so mKCP profiles
+    // could not connect at all. Plain mKCP carries no mask, which is exactly
+    // what `header.type: none` used to mean.
+    case 'kcp': {
+      s.kcpSettings = {};
+      const mask = p.headerType && p.headerType !== 'none' ? String(p.headerType) : '';
+      if (mask) s.kcpSettings.finalmask = `udp header-${mask}`;
       break;
+    }
   }
   return s;
 }
