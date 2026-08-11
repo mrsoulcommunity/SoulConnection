@@ -4,16 +4,16 @@
 
 **فارسی** · [English](README.en.md) · [Русский](README.ru.md) · [↩ انتخاب زبان](README.md)
 
-[![Release](https://img.shields.io/github/v/release/mrsoulcommunity/SoulConnection?label=version&labelColor=0a0d13&color=35e0c0)](https://github.com/mrsoulcommunity/SoulConnection/releases)
-[![Downloads](https://img.shields.io/github/downloads/mrsoulcommunity/SoulConnection/total?labelColor=0a0d13&color=35e0c0)](https://github.com/mrsoulcommunity/SoulConnection/releases)
-[![License](https://img.shields.io/badge/license-MIT-35e0c0?labelColor=0a0d13)](LICENSE)
-[![Platform](https://img.shields.io/badge/Windows-x64%20%7C%20ia32-98a0b4?labelColor=0a0d13)](https://github.com/mrsoulcommunity/SoulConnection/releases/latest)
+[![Release](https://img.shields.io/github/v/release/mrsoulcommunity/SoulConnection?label=version&labelColor=0a0d13&color=1a8a76)](https://github.com/mrsoulcommunity/SoulConnection/releases)
+[![Downloads](https://img.shields.io/github/downloads/mrsoulcommunity/SoulConnection/total?labelColor=0a0d13&color=1a8a76)](https://github.com/mrsoulcommunity/SoulConnection/releases)
+[![License](https://img.shields.io/badge/license-MIT-1a8a76?labelColor=0a0d13)](LICENSE)
+[![Platform](https://img.shields.io/badge/Windows-x64%20%7C%20ia32-5b6377?labelColor=0a0d13)](https://github.com/mrsoulcommunity/SoulConnection/releases/latest)
 
 </div>
 
 ---
 
-<div dir="rtl">
+<div dir="rtl" align="right">
 
 **سول کانکشن یک کلاینت دسکتاپ برای سرورهای VMess، VLESS، Trojan و Shadowsocks است.** هستهٔ Xray را
 پشت یک رابط کاربری تمیز و کاملاً فارسی می‌گذارد و چیزهایی را اضافه می‌کند که بیشتر کلاینت‌ها به حدس
@@ -27,7 +27,7 @@
 
 <div align="center">
 
-[![Download](https://img.shields.io/badge/↓_Download_setup.exe-0a0d13?style=for-the-badge&labelColor=35e0c0&color=141927)](https://github.com/mrsoulcommunity/SoulConnection/releases/latest)
+[![Download](https://img.shields.io/badge/Download_setup.exe-1a8a76?style=for-the-badge)](https://github.com/mrsoulcommunity/SoulConnection/releases/latest)
 
 **دریافت آخرین نسخه برای ویندوز**
 
@@ -35,7 +35,7 @@
 
 <br>
 
-<div dir="rtl">
+<div dir="rtl" align="right">
 
 ## نصب
 
@@ -46,7 +46,7 @@
 > **نکته**
 >
 > نصب‌کننده امضای دیجیتال (code signing) ندارد، پس ممکن است SmartScreen در اجرای اول هشدار بدهد؛
-> روی **More info → Run anyway** بزنید. بعضی آنتی‌ویروس‌ها هم به `xray.exe` همراه برنامه گیر
+> روی **More info** و سپس **Run anyway** بزنید. بعضی آنتی‌ویروس‌ها هم به `xray.exe` همراه برنامه گیر
 > می‌دهند. اگر برنامه گفت `xray.exe` پیدا نشد، پوشهٔ نصب را به فهرست استثناهای آنتی‌ویروس اضافه کنید
 > و دوباره نصب کنید.
 
@@ -61,11 +61,11 @@
 
 | | |
 |---|---|
-| **پروتکل‌ها** | VMess (با AEAD و alterId صفر)، VLESS همراه Reality و XTLS Vision، Trojan، و Shadowsocks شامل رمزهای 2022-blake3 |
+| **پروتکل‌ها** | VMess (با AEAD و alterId صفر)، VLESS همراه Reality و XTLS Vision، Trojan، و Shadowsocks شامل رمزهای <span dir="ltr">2022-blake3</span> |
 | **انتقال‌ها** | TCP، WebSocket، gRPC، HTTP/2، mKCP — با TLS یا Reality |
 | **حالت‌های اتصال** | **پراکسی سیستم** تنظیمات پراکسی ویندوز را برایتان می‌نویسد؛ **تونل (TUN)** کل دستگاه را از طریق Wintun عبور می‌دهد و به دسترسی مدیر نیاز دارد |
 | **پراکسی محلی** | شنونده‌های SOCKS و HTTP روی `127.0.0.1` با نام کاربری و رمز اختیاری. پورت‌ها قابل تنظیم‌اند و اگر اشغال باشند خودکار به اولین پورت آزاد منتقل می‌شوند |
-| **کلید قطع (Kill Switch)** | قواعد فایروال ویندوز که لحظهٔ افتادن تونل تمام ترافیک خروجی را می‌بندند تا چیزی از کنار تونل بیرون نزند |
+| **کلید قطع** | قواعد فایروال ویندوز (Kill Switch) که لحظهٔ افتادن تونل تمام ترافیک خروجی را می‌بندند تا چیزی از کنار تونل بیرون نزند |
 | **اتصال مجدد خودکار** | افتادن ناگهانی تونل را تشخیص می‌دهد و تا پنج بار با فاصلهٔ فزاینده دوباره تلاش می‌کند |
 
 ### سپر تطبیقی — ضدِ DPI، با اندازه‌گیری به‌جای حدس
@@ -171,7 +171,7 @@ Xray ترجمه می‌شود و هم به‌ازای هر اتصال توسط �
                Windows registry           wintun.dll
 ```
 
-<div dir="rtl">
+<div dir="rtl" align="right">
 
 رابط کاربری هیچ‌وقت به Node دست نمی‌زند. فقط از طریق پیش‌بارگذارِ `contextBridge` با پروسهٔ اصلی
 حرف می‌زند؛ `nodeIntegration` خاموش است و رندرر در جعبهٔ شنی (sandbox) اجرا می‌شود.
@@ -210,7 +210,7 @@ cd SoulConnection
 npm install
 ```
 
-<div dir="rtl">
+<div dir="rtl" align="right">
 
 پوشهٔ `bin/` در گیت ردیابی نمی‌شود. پیش از ساخت، هستهٔ Xray و درایور Wintun را در آن بگذارید:
 
@@ -221,14 +221,14 @@ bin/
 ├── geoip.dat
 ├── geosite.dat
 ├── win-x64/
-│   ├── xray.exe        # هستهٔ Xray ۶۴ بیتی
-│   └── wintun.dll      # درایور Wintun ۶۴ بیتی
+│   ├── xray.exe        # 64-bit Xray core
+│   └── wintun.dll      # 64-bit Wintun driver
 └── win-ia32/
-    ├── xray.exe        # هستهٔ Xray ۳۲ بیتی
-    └── wintun.dll      # درایور Wintun ۳۲ بیتی
+    ├── xray.exe        # 32-bit Xray core
+    └── wintun.dll      # 32-bit Wintun driver
 ```
 
-<div dir="rtl">
+<div dir="rtl" align="right">
 
 | دستور | توضیح |
 |---------|-------------|
@@ -248,32 +248,32 @@ bin/
 ```text
 SoulConnection/
 ├── electron/
-│   ├── main.cjs              # پروسهٔ اصلی: IPC، سینی سیستم، چرخهٔ عمر اتصال
-│   ├── preload.cjs           # واسط contextBridge که به رندرر داده می‌شود
+│   ├── main.cjs              # Main process: IPC, tray, connection lifecycle
+│   ├── preload.cjs           # contextBridge API exposed to the renderer
 │   └── lib/
-│       ├── shield/           # سپر تطبیقی: نمایه‌ها، تیونر، حافظهٔ هر شبکه
-│       ├── routing/          # مسیریابی هوشمند: قواعد، تطبیق‌گر، توزیع‌کننده، مترجم
-│       ├── health/           # پایش سلامت، امتیازدهی، جابه‌جایی خودکار
-│       ├── update/           # فید، دانلود ازسرگرفتنی، بررسی SHA-512، نصب‌کننده
-│       ├── xrayProcess.cjs   # چرخهٔ عمر Xray
-│       ├── xrayConfig.cjs    # سازندهٔ کانفیگ
-│       ├── killSwitch.cjs    # قواعد فایروال ویندوز
-│       ├── systemProxy.cjs   # تنظیمات پراکسی ویندوز
-│       ├── tunNetwork.cjs    # برپاسازی رابط TUN
-│       ├── soulPool.cjs      # استخر سرورهای گزیده
-│       └── store.cjs         # ذخیره‌سازی JSON مقاوم در برابر خرابی
+│       ├── shield/           # Adaptive Shield: profiles, tuner, per-network memory
+│       ├── routing/          # Smart Routing: rules, matcher, dispatcher, compiler
+│       ├── health/           # Health monitoring, scoring, automatic failover
+│       ├── update/           # Feed, resumable download, SHA-512 verify, installer
+│       ├── xrayProcess.cjs   # Xray lifecycle
+│       ├── xrayConfig.cjs    # Config builder
+│       ├── killSwitch.cjs    # Windows Firewall rules
+│       ├── systemProxy.cjs   # Windows proxy settings
+│       ├── tunNetwork.cjs    # TUN interface setup
+│       ├── soulPool.cjs      # Curated server pool
+│       └── store.cjs         # Crash-safe JSON store
 ├── src/
-│   ├── App.jsx               # کامپوننت ریشه
-│   ├── components/           # فهرست سرور، تنظیمات، یابنده، سپر، مودال‌ها
-│   ├── finder/               # هماهنگ‌کنندهٔ آزمون سرورها
-│   └── utils/                # قالب‌بندی، تشخیص کشور، امتیازدهی
-├── bin/                      # هستهٔ Xray و Wintun (ردیابی نمی‌شود؛ بالا را ببینید)
-├── scripts/build-exe.cjs     # خط لولهٔ بسته‌بندی
+│   ├── App.jsx               # Root component
+│   ├── components/           # Server list, settings, finder, shield, modals
+│   ├── finder/               # Server-test orchestration
+│   └── utils/                # Formatting, geo lookup, scoring
+├── bin/                      # Xray core + Wintun (not tracked; see above)
+├── scripts/build-exe.cjs     # Packaging pipeline
 ├── vite.config.js
-└── package.json              # تنظیمات electron-builder هم اینجاست
+└── package.json              # Also holds the electron-builder config
 ```
 
-<div dir="rtl">
+<div dir="rtl" align="right">
 
 <br>
 
@@ -281,8 +281,8 @@ SoulConnection/
 
 پروفایل‌ها، اشتراک‌ها و تنظیمات همه در یک فایل JSON هستند:
 
-- **نسخهٔ نصبی** — `%APPDATA%\soul-connection\profiles.json`
-- **نسخهٔ پرتابل** — `data\profiles.json`، کنار فایل اجرایی
+- **نسخهٔ نصبی** — <code dir="ltr">%APPDATA%\soul-connection\profiles.json</code>
+- **نسخهٔ پرتابل** — <code dir="ltr">data\profiles.json</code>، کنار فایل اجرایی
 
 <br>
 
@@ -338,7 +338,7 @@ administrator اجرا کنید و مطمئن شوید `wintun.dll` کنار `xr
 
 ## پروانه
 
-MIT — فایل [LICENSE](LICENSE) را ببینید. اجزای شخص ثالثِ همراه برنامه پروانهٔ خودشان را دارند:
+‏MIT — فایل [LICENSE](LICENSE) را ببینید. اجزای شخص ثالثِ همراه برنامه پروانهٔ خودشان را دارند:
 Xray-core با MPL-2.0 و Wintun، که هر دو در `bin/` با متن پروانه‌شان عرضه می‌شوند.
 
 ## سلب مسئولیت

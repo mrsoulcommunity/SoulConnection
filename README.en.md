@@ -2,12 +2,12 @@
 
 <img src="docs/assets/banner.svg" alt="Soul Connection" width="100%">
 
-[فارسی](README.fa.md) · **English** · [Русский](README.ru.md) · [↩ Language picker](README.md)
+‎[فارسی](README.fa.md) · **English** · [Русский](README.ru.md) · [↩ Language picker](README.md)
 
-[![Release](https://img.shields.io/github/v/release/mrsoulcommunity/SoulConnection?label=version&labelColor=0a0d13&color=35e0c0)](https://github.com/mrsoulcommunity/SoulConnection/releases)
-[![Downloads](https://img.shields.io/github/downloads/mrsoulcommunity/SoulConnection/total?labelColor=0a0d13&color=35e0c0)](https://github.com/mrsoulcommunity/SoulConnection/releases)
-[![License](https://img.shields.io/badge/license-MIT-35e0c0?labelColor=0a0d13)](LICENSE)
-[![Platform](https://img.shields.io/badge/Windows-x64%20%7C%20ia32-98a0b4?labelColor=0a0d13)](https://github.com/mrsoulcommunity/SoulConnection/releases/latest)
+[![Release](https://img.shields.io/github/v/release/mrsoulcommunity/SoulConnection?label=version&labelColor=0a0d13&color=1a8a76)](https://github.com/mrsoulcommunity/SoulConnection/releases)
+[![Downloads](https://img.shields.io/github/downloads/mrsoulcommunity/SoulConnection/total?labelColor=0a0d13&color=1a8a76)](https://github.com/mrsoulcommunity/SoulConnection/releases)
+[![License](https://img.shields.io/badge/license-MIT-1a8a76?labelColor=0a0d13)](LICENSE)
+[![Platform](https://img.shields.io/badge/Windows-x64%20%7C%20ia32-5b6377?labelColor=0a0d13)](https://github.com/mrsoulcommunity/SoulConnection/releases/latest)
 
 </div>
 
@@ -23,7 +23,7 @@ through the tunnel rather than a bare ping.
 
 <div align="center">
 
-[![Download](https://img.shields.io/badge/↓_Download_latest_setup.exe-0a0d13?style=for-the-badge&labelColor=35e0c0&color=141927)](https://github.com/mrsoulcommunity/SoulConnection/releases/latest)
+[![Download](https://img.shields.io/badge/Download_latest_setup.exe-1a8a76?style=for-the-badge)](https://github.com/mrsoulcommunity/SoulConnection/releases/latest)
 
 </div>
 
@@ -35,7 +35,8 @@ Grab the latest `setup.exe` from the [Releases page](https://github.com/mrsoulco
 One installer covers **both 32-bit (ia32) and 64-bit (x64) Windows** — it detects your system and
 installs the matching build. Windows 10 or later is recommended.
 
-> [!NOTE]
+> **Note**
+>
 > The installer is not code-signed, so SmartScreen may warn on first run: choose
 > **More info → Run anyway**. Some antivirus products also flag the bundled `xray.exe`. If the app
 > reports that `xray.exe` is missing, add the install folder to your antivirus exclusions and

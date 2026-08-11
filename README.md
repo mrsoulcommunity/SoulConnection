@@ -14,33 +14,33 @@
 
 ## فارسی
 
-کلاینت مدرن V2Ray / Xray برای ویندوز
+کلاینت V2Ray / Xray برای ویندوز
 
 <br>
 
-[![Persian](https://img.shields.io/badge/Open-Persian-35e0c0?style=for-the-badge&labelColor=0a0d13)](README.fa.md)
+[![Persian](https://img.shields.io/badge/Open-Persian-1a8a76?style=for-the-badge&labelColor=0a0d13)](README.fa.md)
 
 </td>
-<td align="center" width="33%" valign="top">
+<td align="center" width="34%" valign="top">
 
 ## English
 
-A modern V2Ray / Xray client for Windows
+V2Ray / Xray client for Windows
 
 <br>
 
-[![English](https://img.shields.io/badge/Open-English-7fe4d2?style=for-the-badge&labelColor=0a0d13)](README.en.md)
+[![English](https://img.shields.io/badge/Open-English-1a8a76?style=for-the-badge&labelColor=0a0d13)](README.en.md)
 
 </td>
 <td align="center" width="33%" valign="top">
 
 ## Русский
 
-Современный клиент V2Ray / Xray для Windows
+Клиент V2Ray / Xray для Windows
 
 <br>
 
-[![Russian](https://img.shields.io/badge/Open-Russian-f2708a?style=for-the-badge&labelColor=0a0d13)](README.ru.md)
+[![Russian](https://img.shields.io/badge/Open-Russian-1a8a76?style=for-the-badge&labelColor=0a0d13)](README.ru.md)
 
 </td>
 </tr>
@@ -52,14 +52,14 @@ A modern V2Ray / Xray client for Windows
 
 <br>
 
-[![Download](https://img.shields.io/badge/↓_Download_latest_setup.exe-0a0d13?style=for-the-badge&labelColor=35e0c0&color=141927)](https://github.com/mrsoulcommunity/SoulConnection/releases/latest)
+[![Download](https://img.shields.io/badge/Download_latest_setup.exe-1a8a76?style=for-the-badge)](https://github.com/mrsoulcommunity/SoulConnection/releases/latest)
 
 <br>
 
-[![Release](https://img.shields.io/github/v/release/mrsoulcommunity/SoulConnection?label=version&labelColor=0a0d13&color=35e0c0)](https://github.com/mrsoulcommunity/SoulConnection/releases)
-[![Downloads](https://img.shields.io/github/downloads/mrsoulcommunity/SoulConnection/total?labelColor=0a0d13&color=35e0c0)](https://github.com/mrsoulcommunity/SoulConnection/releases)
-[![License](https://img.shields.io/badge/license-MIT-35e0c0?labelColor=0a0d13)](LICENSE)
-[![Platform](https://img.shields.io/badge/Windows-x64%20%7C%20ia32-98a0b4?labelColor=0a0d13)](https://github.com/mrsoulcommunity/SoulConnection/releases/latest)
+[![Release](https://img.shields.io/github/v/release/mrsoulcommunity/SoulConnection?label=version&labelColor=0a0d13&color=1a8a76)](https://github.com/mrsoulcommunity/SoulConnection/releases)
+[![Downloads](https://img.shields.io/github/downloads/mrsoulcommunity/SoulConnection/total?labelColor=0a0d13&color=1a8a76)](https://github.com/mrsoulcommunity/SoulConnection/releases)
+[![License](https://img.shields.io/badge/license-MIT-1a8a76?labelColor=0a0d13)](LICENSE)
+[![Platform](https://img.shields.io/badge/Windows-x64%20%7C%20ia32-5b6377?labelColor=0a0d13)](https://github.com/mrsoulcommunity/SoulConnection/releases/latest)
 
 <br>
 

@@ -2,12 +2,12 @@
 
 <img src="docs/assets/banner.svg" alt="Soul Connection" width="100%">
 
-[فارسی](README.fa.md) · [English](README.en.md) · **Русский** · [↩ Выбор языка](README.md)
+‎[فارسی](README.fa.md) · [English](README.en.md) · **Русский** · [↩ Выбор языка](README.md)
 
-[![Release](https://img.shields.io/github/v/release/mrsoulcommunity/SoulConnection?label=version&labelColor=0a0d13&color=35e0c0)](https://github.com/mrsoulcommunity/SoulConnection/releases)
-[![Downloads](https://img.shields.io/github/downloads/mrsoulcommunity/SoulConnection/total?labelColor=0a0d13&color=35e0c0)](https://github.com/mrsoulcommunity/SoulConnection/releases)
-[![License](https://img.shields.io/badge/license-MIT-35e0c0?labelColor=0a0d13)](LICENSE)
-[![Platform](https://img.shields.io/badge/Windows-x64%20%7C%20ia32-98a0b4?labelColor=0a0d13)](https://github.com/mrsoulcommunity/SoulConnection/releases/latest)
+[![Release](https://img.shields.io/github/v/release/mrsoulcommunity/SoulConnection?label=version&labelColor=0a0d13&color=1a8a76)](https://github.com/mrsoulcommunity/SoulConnection/releases)
+[![Downloads](https://img.shields.io/github/downloads/mrsoulcommunity/SoulConnection/total?labelColor=0a0d13&color=1a8a76)](https://github.com/mrsoulcommunity/SoulConnection/releases)
+[![License](https://img.shields.io/badge/license-MIT-1a8a76?labelColor=0a0d13)](LICENSE)
+[![Platform](https://img.shields.io/badge/Windows-x64%20%7C%20ia32-5b6377?labelColor=0a0d13)](https://github.com/mrsoulcommunity/SoulConnection/releases/latest)
 
 </div>
 
@@ -24,7 +24,7 @@
 
 <div align="center">
 
-[![Download](https://img.shields.io/badge/↓_Скачать_setup.exe-0a0d13?style=for-the-badge&labelColor=35e0c0&color=141927)](https://github.com/mrsoulcommunity/SoulConnection/releases/latest)
+[![Download](https://img.shields.io/badge/%D0%A1%D0%BA%D0%B0%D1%87%D0%B0%D1%82%D1%8C_setup.exe-1a8a76?style=for-the-badge)](https://github.com/mrsoulcommunity/SoulConnection/releases/latest)
 
 </div>
 
@@ -36,7 +36,8 @@
 Один установщик покрывает **и 32-битную (ia32), и 64-битную (x64) Windows** — он сам определит
 систему и поставит нужную сборку. Рекомендуется Windows 10 или новее.
 
-> [!NOTE]
+> **Примечание**
+>
 > Установщик не подписан цифровой подписью, поэтому SmartScreen может предупредить при первом
 > запуске: выберите **More info → Run anyway**. Некоторые антивирусы также реагируют на входящий в
 > комплект `xray.exe`. Если приложение сообщает, что `xray.exe` не найден, добавьте папку установки
