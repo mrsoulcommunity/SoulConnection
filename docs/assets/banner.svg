@@ -1,0 +1,61 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 320" width="1280" height="320" role="img" aria-label="Soul Connection — Xray-powered client for Windows">
+  <defs>
+    <linearGradient id="ground" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#0a0d13"/>
+      <stop offset="55%" stop-color="#0e1219"/>
+      <stop offset="100%" stop-color="#0a0d13"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#35e0c0" stop-opacity="0.55"/>
+      <stop offset="60%" stop-color="#35e0c0" stop-opacity="0.12"/>
+      <stop offset="100%" stop-color="#35e0c0" stop-opacity="0"/>
+    </radialGradient>
+    <!-- User-space so all three routes share one ramp; an object-bounding-box
+         gradient degenerates on the perfectly horizontal middle path. -->
+    <linearGradient id="routeA" gradientUnits="userSpaceOnUse" x1="146" y1="0" x2="322" y2="0">
+      <stop offset="0%" stop-color="#35e0c0" stop-opacity="0.15"/>
+      <stop offset="100%" stop-color="#35e0c0" stop-opacity="0.95"/>
+    </linearGradient>
+    <linearGradient id="routeB" gradientUnits="userSpaceOnUse" x1="146" y1="0" x2="322" y2="0">
+      <stop offset="0%" stop-color="#35e0c0" stop-opacity="0.15"/>
+      <stop offset="100%" stop-color="#7fe4d2" stop-opacity="0.95"/>
+    </linearGradient>
+    <linearGradient id="routeC" gradientUnits="userSpaceOnUse" x1="146" y1="0" x2="322" y2="0">
+      <stop offset="0%" stop-color="#35e0c0" stop-opacity="0.15"/>
+      <stop offset="100%" stop-color="#f2708a" stop-opacity="0.95"/>
+    </linearGradient>
+  </defs>
+
+  <rect x="0" y="0" width="1280" height="320" rx="24" fill="url(#ground)"/>
+  <rect x="0.75" y="0.75" width="1278.5" height="318.5" rx="23.25" fill="none" stroke="#1e2434" stroke-width="1.5"/>
+
+  <!-- one client, three routes out -->
+  <circle cx="128" cy="160" r="62" fill="url(#glow)"/>
+  <circle cx="128" cy="160" r="26" fill="none" stroke="#35e0c0" stroke-opacity="0.30" stroke-width="1.5"/>
+  <circle cx="128" cy="160" r="9" fill="#35e0c0"/>
+
+  <path d="M146 152 C 220 120, 250 96, 316 92" fill="none" stroke="url(#routeA)" stroke-width="2" stroke-linecap="round"/>
+  <path d="M154 160 C 224 160, 252 160, 316 160" fill="none" stroke="url(#routeB)" stroke-width="2" stroke-linecap="round"/>
+  <path d="M146 168 C 220 200, 250 224, 316 228" fill="none" stroke="url(#routeC)" stroke-width="2" stroke-linecap="round"/>
+
+  <circle cx="322" cy="92" r="5" fill="#35e0c0"/>
+  <circle cx="322" cy="160" r="5" fill="#7fe4d2"/>
+  <circle cx="322" cy="228" r="5" fill="#f2708a"/>
+
+  <g font-family="Segoe UI, Inter, Helvetica Neue, Arial, sans-serif" font-size="15" font-weight="600" letter-spacing="3" fill="#5b6377">
+    <text x="342" y="97">FA</text>
+    <text x="342" y="165">EN</text>
+    <text x="342" y="233">RU</text>
+  </g>
+
+  <line x1="412" y1="88" x2="412" y2="232" stroke="#1e2434" stroke-width="1.5"/>
+
+  <g font-family="Segoe UI, Inter, Helvetica Neue, Arial, sans-serif">
+    <text x="452" y="178" font-size="62" font-weight="700" letter-spacing="6">
+      <tspan fill="#e9ecf4">SOUL</tspan><tspan fill="#35e0c0"> CONNECTION</tspan>
+    </text>
+    <text x="456" y="220" font-size="18" font-weight="600" letter-spacing="4.5" fill="#98a0b4">
+      XRAY CORE · WINDOWS · OPEN SOURCE
+    </text>
+  </g>
+</svg>
