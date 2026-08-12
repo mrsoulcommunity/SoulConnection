@@ -30,10 +30,12 @@ const RECONNECT_ATTEMPTS = [
   { value: 20, label: '۲۰ بار' },
 ];
 
+// Kept short deliberately: every dropdown in Settings shares one width, and a
+// label longer than it would widen this one control and break the column.
 const RECONNECT_DELAYS = [
-  { value: 1000, label: 'سریع — ۱ ثانیه' },
-  { value: 2000, label: 'متعادل — ۲ ثانیه (پیش‌فرض)' },
-  { value: 5000, label: 'صبور — ۵ ثانیه' },
+  { value: 1000, label: '۱ ثانیه' },
+  { value: 2000, label: '۲ ثانیه (پیش‌فرض)' },
+  { value: 5000, label: '۵ ثانیه' },
 ];
 
 // The search box sits above everything and filters whole cards. Kept in the
@@ -162,7 +164,7 @@ export default function SettingsView({
             />
             <SelectField
               label="فاصله‌ی بین تلاش‌ها"
-              hint="هر تلاش کمی بیشتر از قبلی صبر می‌کند؛ این عدد گام آن است"
+              hint="هر تلاش کمی بیشتر از قبلی صبر می‌کند؛ این عدد گام آن است — کمتر یعنی سریع‌تر، بیشتر یعنی صبورتر"
               value={settings.reconnectDelayMs ?? 2000}
               options={RECONNECT_DELAYS}
               disabled={!settings.autoReconnect}

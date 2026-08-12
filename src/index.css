@@ -2650,11 +2650,33 @@ button:disabled { cursor: default; }
 .setting-select:focus { outline: none; border-color: var(--signal-dim); }
 .setting-select:active:not(:disabled) { background: var(--card); }
 
+/* Disabled controls have to read as disabled. Chromium's own default for a
+   disabled <select> is opacity 0.7, which sits next to this app's 0.4-0.5
+   convention looking very much like an enabled control -- so the two reconnect
+   dropdowns appeared clickable while auto-reconnect was switched off. */
+.setting-select:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+/* One width for every dropdown in Settings, so the column of controls has a
+   single edge instead of one per control. A <select> sizes itself to its
+   widest option, and with six of them down the page that meant six widths --
+   101px directly above 178px, visibly ragged.
+   `min-width` rather than `width`: an option longer than this (a translation,
+   a server name) then grows its control instead of being clipped, because
+   selects do not ellipsize. Keep option labels shorter than this and they all
+   stay aligned. Scoped to the settings screen on purpose -- the custom-config
+   form uses the same class for fields that are meant to size to their row. */
+.settings-view select.setting-select {
+  min-width: 156px;
+  max-width: 100%;
+}
+
 .setting-select.port-input {
   width: 92px;
   text-align: center;
 }
-.setting-select.port-input:disabled { opacity: 0.5; }
 
 .bypass-textarea {
   width: 100%;
