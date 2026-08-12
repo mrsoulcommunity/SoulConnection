@@ -2636,7 +2636,10 @@ button:disabled { cursor: default; }
 }
 
 .setting-select {
-  background: var(--bg-panel);
+  /* background-COLOR, not the shorthand: `select.setting-select` below paints
+     its chevron as a background-image, and any later shorthand here would reset
+     it to none. */
+  background-color: var(--bg-panel);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   padding: 7px 8px;
@@ -2644,11 +2647,11 @@ button:disabled { cursor: default; }
   font-size: 12px;
   font-family: inherit;
   flex-shrink: 0;
-  transition: border-color 0.15s, background 0.15s;
+  transition: border-color 0.15s, background-color 0.15s;
 }
 .setting-select:hover:not(:disabled) { border-color: #2b3247; }
 .setting-select:focus { outline: none; border-color: var(--signal-dim); }
-.setting-select:active:not(:disabled) { background: var(--card); }
+.setting-select:active:not(:disabled) { background-color: var(--card); }
 
 /* Disabled controls have to read as disabled. Chromium's own default for a
    disabled <select> is opacity 0.7, which sits next to this app's 0.4-0.5
@@ -2657,6 +2660,28 @@ button:disabled { cursor: default; }
 .setting-select:disabled {
   opacity: 0.5;
   cursor: default;
+}
+
+/* ---- The dropdown chevron ----
+   Chromium draws a select's arrow itself, hard against the inline edge, with a
+   spacing the page cannot influence: at this control's 8px padding it sat
+   almost touching the border, tight against the text on the other side. It is
+   also a different glyph and weight from every other chevron in the app.
+   So: suppress the native one and paint ours, with the room it needs on both
+   sides. The document is RTL, which is why the arrow sits on the left. */
+select.setting-select {
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%235b6377' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: left 9px center;
+  background-size: 13px 13px;
+  /* Text keeps clear of the arrow, and the arrow keeps clear of the border. */
+  padding-inline-end: 30px;
+}
+select.setting-select:hover:not(:disabled),
+select.setting-select:focus {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%2398a0b4' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
 }
 
 /* One width for every dropdown in Settings, so the column of controls has a
