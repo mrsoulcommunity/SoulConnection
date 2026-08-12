@@ -51,8 +51,25 @@ const DEFAULT_SETTINGS = {
   restorePreviousSession: false, // renderer-owned UI state; main just persists/exposes it
   minimizeToTray: true,
   autoReconnect: true,
+  // How hard auto-reconnect tries before giving up, and the step it backs off
+  // by (attempt N waits N x this). Exposed because the right answer depends on
+  // the link: a phone hotspot that drops for ten seconds at a time needs more
+  // patience than a desk connection where five fast tries is already generous.
+  reconnectAttempts: 5,
+  reconnectDelayMs: 2000,
   killSwitchEnabled: false,
   subAutoUpdateInterval: 0, // ms; 0 = off
+
+  // ---- Notifications ----
+  // `notifications` is the master switch; the rest silence one category each,
+  // so "tell me when a server switches under me, but stop announcing every
+  // connect" is expressible. Failures the user has to act on (Kill Switch
+  // could not be applied, the system proxy was refused) are not categorised --
+  // they follow the master switch only.
+  notifications: true,
+  notifyConnection: true,
+  notifyFailover: true,
+  notifyUpdates: true,
   // App update policy. 'auto' downloads a new release and installs it after a
   // visible, cancellable countdown; 'download' parks the installer in the
   // Updates folder and waits; 'notify' does nothing until asked. See
@@ -72,6 +89,13 @@ const DEFAULT_SETTINGS = {
   httpUsername: '',
   httpPassword: '',
   customBypass: '', // extra semicolon-separated hosts/patterns added to the system-proxy bypass list
+
+  // ---- Tunnel mode ----
+  // The resolvers Windows hands to apps while the tunnel adapter is up, and
+  // the ones xray re-issues those queries to over DoH. Both halves read this
+  // one setting, so they cannot disagree. Empty falls back to the defaults in
+  // lib/xrayConfig.cjs.
+  tunDns: '1.1.1.1, 8.8.8.8',
 
   // ---- Smart Routing ----
   // 'proxy' keeps the historical behaviour (everything through the tunnel),
@@ -241,7 +265,7 @@ const vpn = createVpnCore({
     sendSoulProgress({ phase: 'done', server: profile.name, ...metrics });
     return profile.id;
   },
-  notify: (title, body) => notify(title, body),
+  notify: (title, body, category) => notify(title, body, category),
   emit: (channel, payload) => sendToWindow(channel, payload),
   log: (msg) => { if (process.env.SC_DEBUG) console.log(msg); },
 });
@@ -274,7 +298,21 @@ function updateSettings(patch) {
   return merged;
 }
 
-function notify(title, body) {
+// Categories a notification can belong to, and the setting that silences each.
+// Anything uncategorised is a failure the user has to act on, and follows the
+// master switch alone -- silencing "tell me when I connect" must not also
+// silence "the Kill Switch could not be applied".
+const NOTIFY_CATEGORIES = {
+  connection: 'notifyConnection',
+  failover: 'notifyFailover',
+  update: 'notifyUpdates',
+};
+
+function notify(title, body, category = null) {
+  const s = getSettings();
+  if (!s.notifications) return;
+  const gate = NOTIFY_CATEGORIES[category];
+  if (gate && s[gate] === false) return;
   try {
     if (Notification.isSupported()) {
       new Notification({ title, body, icon: APP_ICON_PATH }).show();
@@ -526,7 +564,8 @@ app.whenReady().then(async () => {
     getMode: () => getSettings().autoUpdateMode,
     notify: (version) => notify(
       'نسخه‌ی جدید موجود است',
-      `Soul Connection ${version} منتشر شد و در حال آماده‌سازی است.`
+      `Soul Connection ${version} منتشر شد و در حال آماده‌سازی است.`,
+      'update'
     ),
     beforeInstall: prepareForInstall,
     log: (msg) => { if (process.env.SC_DEBUG) console.log(msg); },
@@ -877,7 +916,7 @@ function scheduleSubAutoUpdate() {
   subAutoUpdateTimer = setInterval(async () => {
     const results = await refreshAllSubscriptions();
     if (results.length) {
-      notify('ساب‌اسکریپشن‌ها به‌روزرسانی شدند', `${results.length} ساب‌اسکریپشن بررسی شد`);
+      notify('ساب‌اسکریپشن‌ها به‌روزرسانی شدند', `${results.length} ساب‌اسکریپشن بررسی شد`, 'update');
       if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('profiles-changed');
     }
   }, interval);
@@ -1126,7 +1165,15 @@ const BOOLEAN_SETTINGS = new Set([
   'launchOnStartup', 'runLocalProxyOnStartup', 'startMinimized', 'restorePreviousSession',
   'minimizeToTray', 'autoReconnect', 'killSwitchEnabled',
   'lanDirect', 'autoSelectBestServer', 'failoverEnabled', 'backupMonitoring',
+  'notifications', 'notifyConnection', 'notifyFailover', 'notifyUpdates',
 ]);
+// Whole numbers with a range. Out-of-range is dropped rather than clamped, so
+// a control that sends nonsense is a no-op the user can see rather than a
+// silent substitution they can't.
+const RANGED_SETTINGS = {
+  reconnectAttempts: [1, 20],
+  reconnectDelayMs: [500, 30000],
+};
 const PORT_SETTINGS = new Set(['socksPort', 'httpPort']);
 const HOST_SETTINGS = new Set(['socksHost', 'httpHost']);
 const TEXT_SETTINGS = new Set(['socksUsername', 'socksPassword', 'httpUsername', 'httpPassword']);
@@ -1168,6 +1215,11 @@ ipcMain.handle('settings:update', async (_e, patch) => {
       if (!isValidHost(value)) continue;
     } else if (TEXT_SETTINGS.has(key)) {
       if (typeof value !== 'string' || value.length > 256) continue;
+    } else if (RANGED_SETTINGS[key]) {
+      const [lo, hi] = RANGED_SETTINGS[key];
+      if (typeof value !== 'number' || !Number.isInteger(value) || value < lo || value > hi) continue;
+    } else if (key === 'tunDns') {
+      if (typeof value !== 'string' || value.length > 200) continue;
     } else if (key === 'customBypass') {
       if (typeof value !== 'string' || value.length > 2000) continue;
     }
@@ -1269,6 +1321,26 @@ ipcMain.handle('network:resetDefaults', () => {
   const patch = {};
   for (const key of NETWORK_RESET_KEYS) patch[key] = DEFAULT_SETTINGS[key];
   return updateSettings(patch);
+});
+
+// Everything back to how it shipped. Deliberately touches settings ONLY --
+// servers, subscriptions, routing rules and usage totals are the user's data,
+// not preferences, and losing them to a button labelled "reset settings" would
+// be indefensible. Requires being disconnected because it rewrites the ports
+// and the listen hosts a live tunnel is using.
+ipcMain.handle('settings:resetAll', async () => {
+  if (vpn.state !== 'disconnected') throw new Error('اول باید قطع اتصال کنی');
+  // Lift anything the old settings had switched on at the OS level before the
+  // preference that remembers it disappears.
+  await vpn.killSwitch.onSettingChanged(false, { connected: false });
+  const settings = { ...DEFAULT_SETTINGS };
+  store.set('settings', settings);
+  app.setLoginItemSettings({ openAtLogin: !!settings.launchOnStartup });
+  scheduleSubAutoUpdate();
+  invalidateRoutingCache();
+  vpn.restartHealth();
+  vpn.syncSystemProxy('settings-reset', true).then(() => sendState());
+  return settings;
 });
 
 ipcMain.handle('app:getInfo', () => ({

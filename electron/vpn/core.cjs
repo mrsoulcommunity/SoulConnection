@@ -84,6 +84,7 @@ class VpnCore extends EventEmitter {
    * @param {function} deps.testLocalProxy
    * @param {function} [deps.xrayExists]         () => boolean
    * @param {function} [deps.probeCadence]       (settings) => ms
+   * @param {function} [deps.getTunnelDns]        (settings) => string[]|null
    * @param {function} [deps.reconcileStaleRoutes]
    * @param {function} [deps.teardownRoutes]
    * @param {function} [deps.recentLogs]
@@ -118,6 +119,7 @@ class VpnCore extends EventEmitter {
       _testLocalProxy: deps.testLocalProxy,
       xrayExists: deps.xrayExists || (() => true),
       probeCadence: deps.probeCadence || (() => 8000),
+      getTunnelDns: deps.getTunnelDns || (() => null),
       reconcileStaleRoutes: deps.reconcileStaleRoutes || (async () => 0),
       teardownRoutes: deps.teardownRoutes || (async () => {}),
       _recentLogs: deps.recentLogs || (() => []),
@@ -284,6 +286,7 @@ class VpnCore extends EventEmitter {
           ports,
           routing,
           shieldKey: this.getShieldKey(profile),
+          dnsServers: this.getTunnelDns(settings),
         });
 
         // Cancelled while it was coming up. Bringing a tunnel up is the one
@@ -305,7 +308,7 @@ class VpnCore extends EventEmitter {
         this.machine.to('connected', { reason });
         this.reconnectPolicy.reset();
         await this._attachSubsystems(session, reason);
-        this.notify('Soul Connection', `به «${profile.name}» متصل شدی`);
+        this.notify('Soul Connection', `به «${profile.name}» متصل شدی`, 'connection');
         return session;
       } catch (err) {
         // A cancellation has already put everything back where it belongs, and
@@ -411,19 +414,19 @@ class VpnCore extends EventEmitter {
     await this.killSwitch.onSessionEnded();
 
     if (!this.getSettings().autoReconnect) {
-      this.notify('اتصال قطع شد', 'تونل به‌طور غیرمنتظره قطع شد.');
+      this.notify('اتصال قطع شد', 'تونل به‌طور غیرمنتظره قطع شد.', 'connection');
       return;
     }
 
     const profileId = session ? session.profileId : this.store.get('activeProfileId', null);
     const attempt = profileId ? this.reconnectPolicy.next() : null;
     if (!attempt) {
-      this.notify('اتصال قطع شد', 'تلاش برای اتصال مجدد ناموفق بود.');
+      this.notify('اتصال قطع شد', 'تلاش برای اتصال مجدد ناموفق بود.', 'connection');
       this.reconnectPolicy.reset();
       return;
     }
 
-    this.notify('اتصال قطع شد', `در حال تلاش برای اتصال مجدد (${attempt.attempt}/${attempt.of})…`);
+    this.notify('اتصال قطع شد', `در حال تلاش برای اتصال مجدد (${attempt.attempt}/${attempt.of})…`, 'connection');
     const activity = this.machine.beginActivity('reconnect', 'drop');
     try {
       // Cancellable, unlike the bare setTimeout this replaces: a user who
@@ -472,7 +475,7 @@ class VpnCore extends EventEmitter {
     try {
       await this.connect(candidate.id, { reason: 'failover' });
       const ev = this.failover.noteSwitchResult({ ok: true, fromProfile: from, toProfile: candidate, reason });
-      this.notify('تعویض خودکار سرور', `${reasonText} — به «${candidate.name}» منتقل شدی`);
+      this.notify('تعویض خودکار سرور', `${reasonText} — به «${candidate.name}» منتقل شدی`, 'failover');
       this.send('failover-event', { phase: 'done', ...ev, fromScore: currentScore, toScore: candidateScore });
     } catch (err) {
       const ev = this.failover.noteSwitchResult({

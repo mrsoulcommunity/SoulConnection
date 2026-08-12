@@ -770,6 +770,16 @@ export default function App() {
     }
   }, [showToast]);
 
+  const handleResetAllSettings = useCallback(async () => {
+    try {
+      const updated = await window.soul.resetAllSettings();
+      setSettings(updated);
+      showToast('همه‌ی تنظیمات به حالت پیش‌فرض برگشت');
+    } catch (err) {
+      showToast(err.message || 'بازنشانی ناموفق بود', 'error');
+    }
+  }, [showToast]);
+
   const handleResetNetworkDefaults = useCallback(async () => {
     try {
       const updated = await window.soul.resetNetworkDefaults();
@@ -1024,6 +1034,7 @@ export default function App() {
                   onSystemProxySync={handleSystemProxySync}
                   onOpenProxyFolder={handleOpenProxyFolder}
                   onResetNetworkDefaults={handleResetNetworkDefaults}
+                  onResetAllSettings={handleResetAllSettings}
                   killSwitchBlocking={killSwitchBlocking}
                   health={health}
                   failover={failover}

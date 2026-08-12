@@ -10,6 +10,7 @@
 // main.cjs calls createVpnCore() once and then talks to the object it gets
 // back. Nothing else in the app constructs anything from vpn/.
 const fs = require('fs');
+const net = require('net');
 
 const { VpnCore } = require('./core.cjs');
 const { ConnectionMachine } = require('./machine.cjs');
@@ -37,6 +38,20 @@ const routingRulesLib = require('../lib/routing/rules.cjs');
 const { buildXrayConfig, TUN_NAME, TUN_ADDRESS, TUN_GATEWAY, TUN_PREFIX, TUN_DNS } = require('../lib/xrayConfig.cjs');
 
 const MAX_PROXY_LOGS = 300;
+
+// The tunnel-mode resolver list, as the user typed it: comma, semicolon,
+// whitespace or newline separated. Anything that is not a plain IPv4 address is
+// dropped rather than passed on -- xray rejects the whole config over one bad
+// entry, and losing the tunnel because of a typo in a DNS box is not a trade
+// worth making. An empty result means "use the defaults".
+function parseDnsList(raw) {
+  const parts = String(raw || '').split(/[\s,;]+/).map((p) => p.trim()).filter(Boolean);
+  const out = [];
+  for (const p of parts) {
+    if (net.isIPv4(p) && !out.includes(p)) out.push(p);
+  }
+  return out.length ? out.slice(0, 4) : null;
+}
 const MISSING_XRAY = 'فایل xray.exe پیدا نشد. احتمالاً آنتی‌ویروس آن را حذف یا قرنطینه کرده. لطفاً پوشه‌ی برنامه را به لیست استثناهای آنتی‌ویروس اضافه کن و برنامه را دوباره نصب/اجرا کن.';
 
 /**
@@ -173,7 +188,14 @@ function createVpnCore(deps) {
     systemProxy,
     health,
     failover,
-    reconnectPolicy: new ReconnectPolicy(),
+    // Read live, so a change in Settings governs the next drop rather than
+    // waiting for a restart.
+    reconnectPolicy: new ReconnectPolicy({
+      getConfig: () => {
+        const s = getSettings();
+        return { maxAttempts: s.reconnectAttempts, baseDelayMs: s.reconnectDelayMs };
+      },
+    }),
     dispatcherHost,
 
     store,
@@ -189,6 +211,7 @@ function createVpnCore(deps) {
     testLocalProxy,
     xrayExists: () => fs.existsSync(xrayBin),
     probeCadence: (settings) => modeConfig(settings.failoverMode).probeMs,
+    getTunnelDns: (settings) => parseDnsList(settings.tunDns),
     // A crash or force-quit leaves the /1 routes in the table pointing at an
     // adapter that died with the process. Matched strictly by the tunnel
     // gateway address, so nothing else is ever touched.

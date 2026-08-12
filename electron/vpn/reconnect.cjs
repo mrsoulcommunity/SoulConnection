@@ -11,14 +11,42 @@
 // failures in a row give up while a flaky link that recovers each time never
 // exhausts its budget.
 
+const clamp = (n, lo, hi) => Math.min(Math.max(n, lo), hi);
+
 const MAX_ATTEMPTS = 5;
 const BASE_DELAY_MS = 2000;
 
 class ReconnectPolicy {
-  constructor({ maxAttempts = MAX_ATTEMPTS, baseDelayMs = BASE_DELAY_MS } = {}) {
+  /**
+   * `getConfig` is read on every decision rather than captured once, so
+   * changing the budget in Settings applies to the drop that happens next --
+   * not to the one after the app is restarted.
+   *
+   * @param {object} [opts]
+   * @param {number} [opts.maxAttempts]
+   * @param {number} [opts.baseDelayMs]
+   * @param {function} [opts.getConfig] () => { maxAttempts, baseDelayMs }
+   */
+  constructor({ maxAttempts = MAX_ATTEMPTS, baseDelayMs = BASE_DELAY_MS, getConfig = null } = {}) {
     this.maxAttempts = maxAttempts;
     this.baseDelayMs = baseDelayMs;
+    this.getConfig = getConfig;
     this.attempts = 0;
+  }
+
+  // Live config is user input and is bounded; the constructor's own values are
+  // code-supplied and taken as given. This governs how long the app keeps
+  // trying while the user has no internet, so an out-of-range number reaching
+  // it -- from a hand-edited settings file, or a control that grows a new
+  // option later -- must not turn into "retry forever, instantly".
+  config() {
+    const live = this.getConfig ? this.getConfig() || {} : {};
+    return {
+      maxAttempts: Number.isFinite(live.maxAttempts)
+        ? clamp(Math.round(live.maxAttempts), 1, 20) : this.maxAttempts,
+      baseDelayMs: Number.isFinite(live.baseDelayMs)
+        ? clamp(Math.round(live.baseDelayMs), 500, 30000) : this.baseDelayMs,
+    };
   }
 
   reset() {
@@ -26,21 +54,23 @@ class ReconnectPolicy {
   }
 
   get exhausted() {
-    return this.attempts >= this.maxAttempts;
+    return this.attempts >= this.config().maxAttempts;
   }
 
   /**
    * Claim the next attempt, or null when the budget is spent. Linear backoff:
-   * 2s, 4s, 6s, 8s, 10s -- long enough for a transient network change to
-   * settle, short enough that the user is not left staring at a dead tunnel.
+   * with the default 2s step that is 2s, 4s, 6s, 8s, 10s -- long enough for a
+   * transient network change to settle, short enough that the user is not left
+   * staring at a dead tunnel.
    */
   next() {
-    if (this.exhausted) return null;
+    const { maxAttempts, baseDelayMs } = this.config();
+    if (this.attempts >= maxAttempts) return null;
     this.attempts++;
     return {
       attempt: this.attempts,
-      of: this.maxAttempts,
-      delayMs: this.baseDelayMs * this.attempts,
+      of: maxAttempts,
+      delayMs: baseDelayMs * this.attempts,
     };
   }
 }

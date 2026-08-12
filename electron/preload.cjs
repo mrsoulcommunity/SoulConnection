@@ -27,6 +27,7 @@ contextBridge.exposeInMainWorld('soul', {
   setMode: (mode) => ipcRenderer.invoke('settings:setMode', mode),
   getSettings: () => ipcRenderer.invoke('settings:get'),
   updateSettings: (patch) => ipcRenderer.invoke('settings:update', patch),
+  resetAllSettings: () => ipcRenderer.invoke('settings:resetAll'),
   openLogsFolder: () => ipcRenderer.invoke('app:openLogsFolder'),
   getAppInfo: () => ipcRenderer.invoke('app:getInfo'),
   // ---- App updates ----

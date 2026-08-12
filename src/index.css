@@ -2454,8 +2454,79 @@ button:disabled { cursor: default; }
   overflow-y: auto;
   display: flex;
   flex-direction: column;
+  padding: 0 20px 18px;
+}
+
+/* The cards keep the column layout the view used to own itself; the search bar
+   above them is a sibling, not a card, so it must not inherit the card gap. */
+.settings-cards {
+  display: flex;
+  flex-direction: column;
   gap: 10px;
-  padding: 10px 20px 18px;
+}
+
+/* ---- Settings search ----
+   Sticky at the top of the scroller: fifteen cards over five screens means a
+   filter you have to scroll back up to reach is one nobody uses twice. The
+   background is opaque because cards pass underneath it. */
+.settings-search {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 0;
+  background: var(--bg-panel);
+}
+
+.settings-search-icon {
+  position: absolute;
+  inset-inline-start: 12px;
+  display: flex;
+  color: var(--text-faint);
+  pointer-events: none;
+}
+
+.settings-search-input {
+  flex: 1;
+  min-width: 0;
+  height: 36px;
+  padding-inline: 34px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--card);
+  color: var(--text);
+  font: inherit;
+  font-size: 12px;
+  transition: border-color 0.15s, background 0.15s;
+}
+.settings-search-input::placeholder { color: var(--text-faint); }
+.settings-search-input:focus {
+  outline: none;
+  border-color: var(--signal);
+  background: var(--card-hover);
+}
+/* The type=search clear affordance is a Chromium widget that ignores the
+   app's styling and sits on the wrong side in RTL -- ours is next to it. */
+.settings-search-input::-webkit-search-cancel-button { display: none; }
+
+.settings-search-count {
+  flex: none;
+  font-size: 10.5px;
+  color: var(--text-faint);
+  white-space: nowrap;
+}
+.settings-search-count.none { color: var(--danger); }
+
+.settings-search-clear { flex: none; }
+
+/* A standalone remark inside a card -- not a row, so it carries the row's
+   inline padding itself. */
+.settings-note {
+  margin: -2px 0 8px;
+  padding-inline: 2px;
+  line-height: 1.7;
 }
 
 .settings-card {

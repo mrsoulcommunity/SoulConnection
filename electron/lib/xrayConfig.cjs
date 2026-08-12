@@ -288,13 +288,18 @@ function assemble(profile, opts, inbounds) {
     // to 1.1.1.1 over UDP.
     outbounds.push({ protocol: 'dns', tag: 'dns-out', settings: { nonIPQuery: 'drop' } });
 
-    const servers = ['https://1.1.1.1/dns-query', 'https://8.8.8.8/dns-query'];
+    // Whatever the user configured for the adapter, re-issued over DoH so the
+    // queries ride TCP through the tunnel rather than depending on the server
+    // relaying UDP. Falls back to the defaults when nothing valid was given.
+    const resolvers = (Array.isArray(opts.dnsServers) && opts.dnsServers.length)
+      ? opts.dnsServers : TUN_DNS;
+    const servers = resolvers.map((ip) => `https://${ip}/dns-query`);
     // The server's own hostname is the one name that cannot be resolved through
     // the tunnel -- the tunnel does not exist yet. Give it a plain resolver,
     // pinned direct by the routing rule added below.
     if (profile && profile.address && !isIpLiteral(profile.address)) {
       servers.unshift({
-        address: '1.1.1.1',
+        address: resolvers[0],
         domains: [`full:${profile.address}`],
         skipFallback: true,
       });

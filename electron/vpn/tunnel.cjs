@@ -69,9 +69,14 @@ class Tunnel extends EventEmitter {
    *
    * @returns {Promise<object>} the live session
    */
-  async open({ profile, mode = 'proxy', settings, ports, routing, shieldKey = null }) {
+  async open({ profile, mode = 'proxy', settings, ports, routing, shieldKey = null, dnsServers = null }) {
     if (this.session) throw new Error('Tunnel is already open');
     this.closing = false;
+
+    // The resolvers Windows hands to apps and the ones xray re-issues those
+    // queries to have to be the same list, or the adapter advertises a server
+    // whose answers never arrive. One value, both halves.
+    const dns = (dnsServers && dnsServers.length) ? dnsServers : this.tunConfig.dnsServers;
 
     const baseOpts = {
       socksPort: ports.socksPort,
@@ -86,6 +91,7 @@ class Tunnel extends EventEmitter {
       httpAccounts: settings.httpUsername
         ? [{ user: settings.httpUsername, pass: settings.httpPassword || '' }] : undefined,
       routingRules: routing.rules,
+      dnsServers: dns,
       // Whatever the shield measured for this server on this network. Plain
       // until a tune has run, so a first connect is never delayed by it.
       shield: shieldKey,
@@ -129,7 +135,7 @@ class Tunnel extends EventEmitter {
           address: this.tunConfig.address,
           prefixLength: this.tunConfig.prefixLength,
           gateway: this.tunConfig.gateway,
-          dnsServers: this.tunConfig.dnsServers,
+          dnsServers: dns,
           serverAddress: profile.address,
         });
       }

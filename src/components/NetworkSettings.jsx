@@ -12,6 +12,23 @@ const PROTO_LABEL = { socks: 'SOCKS5', http: 'HTTP' };
 
 const hostValidate = (v) => (isValidHost(v) ? null : 'آدرس IP یا دامنه معتبر نیست');
 
+// Tunnel-mode resolvers. Only plain IPv4 is accepted: these are handed to the
+// Windows adapter and re-issued by xray over DoH, and a hostname there would
+// need resolving by the very resolver being configured.
+const IPV4_ONLY = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/;
+function dnsValidate(v) {
+  const parts = String(v || '').split(/[\s,;]+/).map((p) => p.trim()).filter(Boolean);
+  if (!parts.length) return null; // empty falls back to the built-in defaults
+  if (parts.length > 4) return 'حداکثر ۴ آدرس';
+  for (const p of parts) {
+    const m = p.match(IPV4_ONLY);
+    if (!m || !m.slice(1).every((o) => Number(o) >= 0 && Number(o) <= 255)) {
+      return `«${p}» آدرس IPv4 معتبر نیست`;
+    }
+  }
+  return null;
+}
+
 function TestResult({ state }) {
   if (!state || state.status === 'idle') return null;
   if (state.status === 'testing') {
@@ -259,6 +276,18 @@ export default function NetworkSettings({
         </div>
       </Section>
 
+      <Section title="DNS حالت تانل" icon="globe" description="سرورهای نامی که در حالت تانل کامل استفاده می‌شوند">
+        <TextField
+          label="سرورهای DNS"
+          value={settings.tunDns}
+          disabled={portsLocked}
+          placeholder="1.1.1.1, 8.8.8.8"
+          hint="فقط در «تانل کامل» اثر دارد. با ویرگول یا فاصله جدا کن؛ خالی یعنی پیش‌فرض برنامه. پرس‌وجوها از داخل تونل و روی DoH فرستاده می‌شوند، نه UDP."
+          validate={dnsValidate}
+          onCommit={(v) => onUpdateChecked({ tunDns: v })}
+        />
+      </Section>
+
       <Section title="مسیرهای Bypass" icon="filter" description="آدرس‌هایی که همیشه بدون پروکسی، مستقیم باز می‌شوند">
         <BypassField value={settings.customBypass} onCommit={(v) => onUpdate({ customBypass: v })} />
       </Section>
@@ -267,7 +296,7 @@ export default function NetworkSettings({
         <ProxyLogFeed logs={logs} />
       </Section>
 
-      <Section title="پیشرفته" icon="sliders" description="پوشه‌ی فایل‌ها و بازنشانی کامل">
+      <Section title="فایل‌ها و بازنشانی شبکه" icon="sliders" description="پوشه‌ی پروکسی و بازگرداندن تنظیمات شبکه">
         <div className="setting-row">
           <div className="setting-text">
             <span className="setting-label">پوشه‌ی پروکسی</span>
@@ -281,7 +310,11 @@ export default function NetworkSettings({
         <div className="setting-row">
           <div className="setting-text">
             <span className="setting-label">بازنشانی همه‌ی تنظیمات شبکه</span>
-            <span className="setting-hint error">Host/Port/احراز هویت هر دو پروتکل و لیست bypass به حالت پیش‌فرض برمی‌گردند</span>
+            {/* `bdi` isolates the Latin run: written inline in RTL text it was
+                reordered across the line break and rendered as «I/Host/Port». */}
+            <span className="setting-hint error">
+              آدرس، پورت و احراز هویت هر دو پروتکل (<bdi>SOCKS5</bdi> و <bdi>HTTP</bdi>) و لیست <bdi>bypass</bdi> به حالت پیش‌فرض برمی‌گردند
+            </span>
           </div>
           <button className="btn icon-inline-btn" disabled={portsLocked} onClick={() => setConfirmResetAll(true)}>
             <Icon name="trash" size={14} />
