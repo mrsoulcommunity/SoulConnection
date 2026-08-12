@@ -88,7 +88,13 @@ function summarize(samples) {
 
 // Sequential on purpose -- parallel handshakes queue behind each other in the
 // same socket buffer and measure contention instead of latency.
-async function measurePing(address, port, { count = 5, timeoutMs = 3000, gapMs = 80 } = {}) {
+// `signal` makes a measurement abandonable. Without it a batch sweep's stop
+// button could only stop the QUEUE -- every measurement already in flight ran
+// to completion, so cancelling a sweep of fifty servers still meant waiting out
+// a dozen three-second timeouts while the UI said "stopping".
+async function measurePing(address, port, { count = 5, timeoutMs = 3000, gapMs = 80, signal = null } = {}) {
+  const cancelled = () => !!(signal && signal.aborted);
+  if (cancelled()) return { cancelled: true };
   let ip;
   let dnsMs;
   try {
@@ -114,10 +120,14 @@ async function measurePing(address, port, { count = 5, timeoutMs = 3000, gapMs =
     };
   }
   const target = ip;
+  if (cancelled()) return { cancelled: true };
 
   const warmup = await handshake(target, port, timeoutMs);
   const samples = [];
   for (let i = 0; i < count; i++) {
+    // Checked between samples rather than mid-handshake: a socket already
+    // dialling is left to time out on its own, but nothing new is started.
+    if (cancelled()) return { cancelled: true };
     const ms = await handshake(target, port, timeoutMs);
     samples.push(ms);
     // A host that answers nothing would otherwise burn count x timeoutMs
@@ -125,6 +135,7 @@ async function measurePing(address, port, { count = 5, timeoutMs = 3000, gapMs =
     if (warmup < 0 && samples.length >= 2 && !samples.some((s) => s > 0)) break;
     if (i < count - 1) await sleep(gapMs);
   }
+  if (cancelled()) return { cancelled: true };
 
   return {
     method: 'tcp',

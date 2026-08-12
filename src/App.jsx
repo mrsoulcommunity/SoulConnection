@@ -87,6 +87,9 @@ export default function App() {
   // later release re-opens the card instead of inheriting an old "not now".
   const [updateDismissed, setUpdateDismissed] = useState(null);
   const [pings, setPings] = useState({});
+  // The live batch measurement, or null. See handlePingAll.
+  const [pingSweep, setPingSweep] = useState(null);
+  const pingSweepRef = useRef(null);
   const [showAdd, setShowAdd] = useState(false);
   // Seeded eagerly (before `settings` loads) from whatever was last saved --
   // if "Restore Previous Session" turns out to be off, the effect below
@@ -549,12 +552,24 @@ export default function App() {
 
   // Keeps the previous reading visible while a new one is in flight, so a
   // re-ping doesn't blank the row out and shift the layout under the cursor.
-  const handlePing = useCallback(async (id) => {
+  const handlePing = useCallback(async (id, token) => {
     // `method` rides along so the "measured through the tunnel" marker doesn't
     // blink off and back on during a re-measure of the connected server.
-    setPings((p) => ({ ...p, [id]: { status: 'measuring', prev: pingMs(p[id]), method: p[id]?.method } }));
+    let previous;
+    setPings((p) => {
+      previous = p[id];
+      return { ...p, [id]: { status: 'measuring', prev: pingMs(p[id]), method: p[id]?.method } };
+    });
     try {
-      const entry = toEntry(await window.soul.pingTest(id));
+      const result = await window.soul.pingTest(id, token);
+      // Abandoned by a stop button. The server was not measured and did not
+      // fail -- marking the row red would be inventing a result, so it goes
+      // back to whatever it showed before.
+      if (result && result.cancelled) {
+        setPings((p) => ({ ...p, [id]: previous }));
+        return null;
+      }
+      const entry = toEntry(result);
       setPings((p) => ({ ...p, [id]: entry }));
       return pingMs(entry) ?? -1;
     } catch (err) {
@@ -563,9 +578,52 @@ export default function App() {
     }
   }, []);
 
+  // A sweep is a whole batch of measurements, and the user watching it wants
+  // three things the old version never told them: how far along it is, how it
+  // turned out, and how to stop it. `pingSweepRef` holds the live token so the
+  // cancel button can reach it without re-rendering every card on each tick.
   const handlePingAll = useCallback(async (ids) => {
-    await mapWithConcurrency(ids, PING_CONCURRENCY, (id) => handlePing(id));
+    if (pingSweepRef.current || !ids.length) return;
+    const token = { cancelled: false, id: `sweep-${Date.now()}` };
+    pingSweepRef.current = token;
+    setPingSweep({
+      total: ids.length, done: 0, ok: 0, best: null, running: true, cancelled: false,
+    });
+    try {
+      await mapWithConcurrency(ids, PING_CONCURRENCY, async (id) => {
+        // Cancelling stops the queue; measurements already in flight are left
+        // to finish, because the main process has no way to abort one midway
+        // and pretending otherwise would leave their rows spinning forever.
+        if (token.cancelled) return;
+        const ms = await handlePing(id, token.id);
+        // null means it was abandoned mid-measurement: it counts towards
+        // neither the measured tally nor the failures.
+        if (ms == null) return;
+        setPingSweep((s) => (s ? {
+          ...s,
+          done: s.done + 1,
+          ok: s.ok + (ms >= 0 ? 1 : 0),
+          best: ms >= 0 && (s.best == null || ms < s.best) ? ms : s.best,
+        } : s));
+      });
+    } finally {
+      pingSweepRef.current = null;
+      setPingSweep((s) => (s ? { ...s, running: false, cancelled: token.cancelled } : s));
+    }
   }, [handlePing]);
+
+  // Stops the queue AND abandons the dozen measurements already running, so
+  // "stopping" takes about as long as it says rather than quietly finishing the
+  // batch. Rows that were mid-measurement revert to their previous reading.
+  const handleCancelPingAll = useCallback(() => {
+    const token = pingSweepRef.current;
+    if (!token) return;
+    token.cancelled = true;
+    setPingSweep((s) => (s ? { ...s, cancelled: true } : s));
+    window.soul.pingCancel?.(token.id).catch(() => {});
+  }, []);
+
+  const handleDismissPingSweep = useCallback(() => setPingSweep(null), []);
 
   // Connect regardless of current state (used by the finder's result cards).
   const handleConnectTo = useCallback(async (id) => {
@@ -887,6 +945,9 @@ export default function App() {
             onDelete={handleDelete}
             onPing={handlePing}
             onPingAll={handlePingAll}
+            pingSweep={pingSweep}
+            onCancelPingAll={handleCancelPingAll}
+            onDismissPingSweep={handleDismissPingSweep}
             onAdd={() => setShowAdd(true)}
             onRefreshSubscription={handleRefreshSubscription}
             onUpdateAllSubscriptions={handleUpdateAllSubscriptions}

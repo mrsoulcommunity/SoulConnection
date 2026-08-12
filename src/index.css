@@ -794,6 +794,124 @@ button:disabled { cursor: default; }
   animation: none;
 }
 
+/* ---- Batch measurement ---- */
+
+/* The toolbar button, while a sweep runs: a ring that fills as servers are
+   measured, with a stop square in the middle. It replaces a bare spinner that
+   said only "something is happening" for what can be half a minute of work. */
+.sweep-ring {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.sweep-ring svg { transform: rotate(-90deg); }
+.sweep-ring circle {
+  fill: none;
+  stroke-width: 2;
+}
+.sweep-ring-track { stroke: var(--border); }
+.sweep-ring-bar {
+  stroke: var(--signal);
+  stroke-linecap: round;
+  transition: stroke-dashoffset 0.3s ease;
+}
+.sweep-ring-glyph {
+  position: absolute;
+  width: 6px;
+  height: 6px;
+  border-radius: 1.5px;
+  background: var(--signal);
+}
+/* Asked to stop, still finishing what is already in flight. */
+.sweep-ring.stopping .sweep-ring-bar,
+.sweep-ring.stopping .sweep-ring-glyph { stroke: var(--text-faint); background: var(--text-faint); }
+.sweep-ring.stopping .sweep-ring-glyph { animation: sweep-stop-pulse 1s ease-in-out infinite; }
+
+@keyframes sweep-stop-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
+
+/* The strip under the toolbar: progress while it runs, the result after. */
+.ping-sweep {
+  margin: 0 12px 8px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--card);
+  overflow: hidden;
+  animation: sweep-in 0.22s ease;
+}
+
+@keyframes sweep-in {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.ping-sweep-track {
+  height: 2px;
+  background: var(--border);
+}
+.ping-sweep-fill {
+  display: block;
+  height: 100%;
+  background: var(--signal);
+  transition: width 0.3s ease;
+}
+.ping-sweep.settled .ping-sweep-fill { background: var(--signal-dim); }
+
+/* Wraps rather than truncates: the sentence is the point of the strip, and in
+   a 300px sidebar it loses a width fight against two badges and a close button
+   every time. When they don't all fit, the badges take the next line. */
+.ping-sweep-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 8px;
+  padding: 7px 10px;
+  font-size: 10.5px;
+  color: var(--text-dim);
+}
+
+.ping-sweep-count {
+  flex: none;
+  padding: 1px 5px;
+  border-radius: 5px;
+  background: var(--signal-tint);
+  color: var(--signal);
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.ping-sweep-label {
+  flex: 1 1 auto;
+  min-width: 104px;
+}
+
+.ping-sweep-stat {
+  flex: none;
+  padding: 1px 6px;
+  border-radius: 5px;
+  font-size: 10px;
+  white-space: nowrap;
+}
+.ping-sweep-stat.best { background: var(--signal-tint); color: var(--signal); }
+.ping-sweep-stat.best b { font-weight: 700; }
+.ping-sweep-stat.failed { background: rgba(239, 90, 111, 0.12); color: var(--danger); }
+
+.ping-sweep-close {
+  flex: none;
+  /* Always at the far end of whatever line it lands on, so it never floats
+     mid-row when the badges wrap. */
+  margin-inline-start: auto;
+  display: flex;
+  align-items: center;
+  color: var(--text-faint);
+  padding: 2px;
+  border-radius: 4px;
+}
+.ping-sweep-close:hover { color: var(--text); background: rgba(255, 255, 255, 0.06); }
+
 .ping-dots {
   display: inline-flex;
   gap: 2px;

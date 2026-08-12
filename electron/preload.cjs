@@ -86,7 +86,8 @@ contextBridge.exposeInMainWorld('soul', {
   connect: (profileId) => ipcRenderer.invoke('connection:connect', profileId),
   disconnect: () => ipcRenderer.invoke('connection:disconnect'),
   status: () => ipcRenderer.invoke('connection:status'),
-  pingTest: (profileId) => ipcRenderer.invoke('ping:test', profileId),
+  pingTest: (profileId, token) => ipcRenderer.invoke('ping:test', token ? { profileId, token } : profileId),
+  pingCancel: (token) => ipcRenderer.invoke('ping:cancel', token),
 
   // ---- Tunnel status (public exit IP) ----
   tunnelGet: () => ipcRenderer.invoke('tunnel:get'),

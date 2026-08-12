@@ -45,6 +45,82 @@ function PingPill({ entry, onClick }) {
   );
 }
 
+// A real ping takes several samples per server, so a sweep over a long list is
+// measurably long. The toolbar button becomes the progress readout for it --
+// and, while it runs, the way to stop it: a measurement you cannot call off is
+// one you have to sit and wait out.
+function SweepRing({ done, total, stopping }) {
+  const radius = 7;
+  const circumference = 2 * Math.PI * radius;
+  const progress = total ? Math.min(done / total, 1) : 0;
+  return (
+    <span className={`sweep-ring ${stopping ? 'stopping' : ''}`} aria-hidden="true">
+      <svg viewBox="0 0 18 18" width="18" height="18">
+        <circle className="sweep-ring-track" cx="9" cy="9" r={radius} />
+        <circle
+          className="sweep-ring-bar"
+          cx="9"
+          cy="9"
+          r={radius}
+          strokeDasharray={circumference}
+          strokeDashoffset={circumference * (1 - progress)}
+        />
+      </svg>
+      <span className="sweep-ring-glyph" />
+    </span>
+  );
+}
+
+// What a batch is doing, and then how it turned out. The result half is the
+// part that did not exist before: after measuring fifty servers the answer was
+// spread across fifty rows and nowhere else, so "did that help?" meant
+// scrolling the whole list to find out.
+function SweepStrip({ sweep, onDismiss }) {
+  if (!sweep) return null;
+  const percent = sweep.total ? Math.round((sweep.done / sweep.total) * 100) : 0;
+  const failed = Math.max(0, sweep.done - sweep.ok);
+
+  return (
+    <div className={`ping-sweep ${sweep.running ? 'running' : 'settled'}`}>
+      <div className="ping-sweep-track">
+        <span className="ping-sweep-fill" style={{ width: `${percent}%` }} />
+      </div>
+      <div className="ping-sweep-row">
+        {sweep.running ? (
+          <>
+            <span className="ping-sweep-count mono" dir="ltr">{sweep.done}/{sweep.total}</span>
+            <span className="ping-sweep-label">
+              {sweep.cancelled ? 'در حال توقف…' : 'در حال اندازه‌گیری پینگ واقعی…'}
+            </span>
+          </>
+        ) : (
+          <>
+            <span className="ping-sweep-label">
+              {sweep.cancelled
+                ? `متوقف شد — ${sweep.done} سرور از ${sweep.total} سنجیده شد`
+                : sweep.ok === 0
+                  ? `هیچ‌کدام از ${sweep.done} سرور پاسخ ندادند`
+                  : `${sweep.ok} سرور از ${sweep.done} پاسخ داد`}
+            </span>
+            {sweep.best != null && (
+              <span className="ping-sweep-stat best">
+                بهترین <b className="mono" dir="ltr">{sweep.best}</b>ms
+              </span>
+            )}
+            {/* Redundant when nothing answered -- the label already says so. */}
+            {failed > 0 && sweep.ok > 0 && (
+              <span className="ping-sweep-stat failed">{failed} بی‌پاسخ</span>
+            )}
+            <button className="ping-sweep-close" onClick={onDismiss} title="بستن">
+              <Icon name="close" size={12} />
+            </button>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // Memoized so a ping/traffic tick that changes one card's `ms` (or unrelated
 // App state) doesn't re-render every other card in a list that can run into
 // the hundreds. Relies on `onSelect`/`onDelete`/`onPing`/`onContextMenu` being
@@ -74,6 +150,7 @@ const ServerCard = React.memo(function ServerCard({ profile, active, ping, onSel
 function ServerList({
   profiles, subscriptions, activeProfileId, connectionState, pings, updatingSubs, refreshingSubIds,
   onSelect, onDelete, onPing, onPingAll, onAdd,
+  pingSweep, onCancelPingAll, onDismissPingSweep,
   onRefreshSubscription, onUpdateAllSubscriptions, onDeleteSubscription,
   onConnectTo, onDisconnect, onRenameProfile, onEditProfile, onUpdateSubscription, onToast,
   initialQuery, initialSortBy, initialCollapsed, onSessionChange,
@@ -85,7 +162,6 @@ function ServerList({
   const [modal, setModal] = useState(null);
   const [confirmDelete, setConfirmDelete] = useState(null);
   const [testModal, setTestModal] = useState(null); // { sub, mode, autoConnectBest }
-  const [pingingAll, setPingingAll] = useState(false);
 
   // "Restore Previous Session" -- reports query/sortBy/collapsed up (debounced)
   // whenever they change, so App.jsx can persist them; a no-op when the
@@ -192,23 +268,13 @@ function ServerList({
 
   const groups = useMemoGroups(filtered, subscriptions, pings);
 
-  // A real ping takes several samples per server, so a sweep over a large list
-  // is measurably long -- the toolbar button becomes the progress readout for
-  // it instead of sitting there looking idle.
-  const measuringCount = useMemo(
-    () => filtered.reduce((n, p) => n + (isMeasuring(pings[p.id]) ? 1 : 0), 0),
-    [filtered, pings]
-  );
-
-  const runPingAll = useCallback(async () => {
-    if (pingingAll) return;
-    setPingingAll(true);
-    try {
-      await onPingAll(filtered.map((p) => p.id));
-    } finally {
-      setPingingAll(false);
-    }
-  }, [pingingAll, onPingAll, filtered]);
+  // Measures exactly what is on screen: with a search or a filter active,
+  // sweeping the servers the user cannot see is work they did not ask for.
+  const sweeping = !!pingSweep && pingSweep.running;
+  const runPingAll = useCallback(() => {
+    if (sweeping) return;
+    onPingAll(filtered.map((p) => p.id));
+  }, [sweeping, onPingAll, filtered]);
 
   if (!profiles.length) {
     return (
@@ -244,16 +310,20 @@ function ServerList({
           <option value="name">نام</option>
         </select>
         <button
-          className={`icon-btn ping-all ${pingingAll ? 'busy' : ''}`}
-          title={pingingAll ? `در حال اندازه‌گیری پینگ واقعی… (${measuringCount} سرور باقی مانده)` : 'اندازه‌گیری پینگ واقعی همه‌ی سرورها'}
-          onClick={runPingAll}
-          disabled={pingingAll}
+          className={`icon-btn ping-all ${sweeping ? 'busy' : ''}`}
+          onClick={sweeping ? onCancelPingAll : runPingAll}
+          disabled={sweeping && pingSweep.cancelled}
+          title={sweeping
+            ? (pingSweep.cancelled ? 'در حال توقف…' : `توقف اندازه‌گیری (${pingSweep.done} از ${pingSweep.total})`)
+            : 'اندازه‌گیری پینگ واقعی همه‌ی سرورها'}
         >
-          {pingingAll
-            ? <span className="icon-spinner" aria-hidden="true" />
+          {sweeping
+            ? <SweepRing done={pingSweep.done} total={pingSweep.total} stopping={pingSweep.cancelled} />
             : <Icon name="gauge" size={15} />}
         </button>
       </div>
+
+      <SweepStrip sweep={pingSweep} onDismiss={onDismissPingSweep} />
 
       {subscriptions.length > 0 && (
         <button className="update-all-btn" onClick={onUpdateAllSubscriptions} disabled={updatingSubs}>

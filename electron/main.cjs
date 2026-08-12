@@ -1055,7 +1055,13 @@ ipcMain.handle('connection:status', () => ({
 //     latency the user is living with rather than the distance to the front door.
 //   * everything else gets repeated TCP handshakes with DNS factored out
 //     (see lib/pingTest.cjs). No scores, no interpolation, no cached guesses.
-ipcMain.handle('ping:test', async (_e, profileId) => {
+// `payload` is either a bare profile id (a single click on one row) or
+// `{ profileId, token }` -- a batch sweep passes a token so its stop button can
+// abandon measurements that are already running, not just the queue behind them.
+// The token registry is serverTest's, and `test:cancel` already drives it.
+ipcMain.handle('ping:test', async (_e, payload) => {
+  const profileId = typeof payload === 'string' ? payload : payload?.profileId;
+  const token = typeof payload === 'string' ? null : payload?.token;
   const profile = findProfile(profileId);
   if (!profile) throw new Error('کانفیگ پیدا نشد');
 
@@ -1085,8 +1091,47 @@ ipcMain.handle('ping:test', async (_e, profileId) => {
     }
   }
 
-  const result = await measurePing(profile.address, profile.port, { count: 5, timeoutMs: 3000, gapMs: 80 });
-  return { profileId, ...result };
+  const run = beginPingRun(token);
+  try {
+    const result = await measurePing(profile.address, profile.port, {
+      count: 5, timeoutMs: 3000, gapMs: 80, signal: run.signal,
+    });
+    return { profileId, ...result };
+  } finally {
+    run.done();
+  }
+});
+
+// Cancelling a batch sweep. One token covers every measurement the sweep has in
+// flight -- a dozen at a time -- so a token maps to a SET of controllers.
+// serverTest's registry is deliberately not reused: it is one controller per
+// token, which is right for the finder (serial) and would silently drop all but
+// the last of these.
+const pingRuns = new Map(); // token -> Set<AbortController>
+
+function beginPingRun(token) {
+  if (!token) return { signal: null, done() {} };
+  const controller = new AbortController();
+  let set = pingRuns.get(token);
+  if (!set) { set = new Set(); pingRuns.set(token, set); }
+  set.add(controller);
+  return {
+    signal: controller.signal,
+    done() {
+      const live = pingRuns.get(token);
+      if (!live) return;
+      live.delete(controller);
+      if (!live.size) pingRuns.delete(token);
+    },
+  };
+}
+
+ipcMain.handle('ping:cancel', (_e, token) => {
+  const set = pingRuns.get(token);
+  if (!set) return 0;
+  for (const c of set) c.abort();
+  pingRuns.delete(token);
+  return set.size;
 });
 
 // ---- Server Finder test engine ----
