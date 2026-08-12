@@ -21,8 +21,19 @@ class XrayProcess extends EventEmitter {
     this.logLines = [];
   }
 
+  // Liveness is event-driven: `proc` is cleared the moment the process exits,
+  // so this answers from what happened rather than inferring it.
+  //
+  // Inferring it was wrong for the one case that matters most. A process
+  // terminated by a SIGNAL -- killed from outside, OOM-reaped, taken down with
+  // its console -- leaves `exitCode === null` (the exit was a signal, not a
+  // code) and `killed === false` (that flag only means *we* called .kill()).
+  // The old check read both as "still running", so after any such death every
+  // later start() rejected with "Xray is already running": the tunnel dropped,
+  // auto-reconnect tried, and the app stayed disconnected until it was
+  // restarted -- exactly when the user most needs it to recover by itself.
   get isRunning() {
-    return !!this.proc && this.proc.exitCode === null && !this.proc.killed;
+    return !!this.proc;
   }
 
   start(config) {
@@ -65,12 +76,18 @@ class XrayProcess extends EventEmitter {
 
       proc.on('error', (err) => {
         if (!isCurrent()) return;
+        // Spawn failed outright -- there is no process to be holding on to.
+        this.proc = null;
         if (!settled) { settled = true; reject(err); }
         this.emit('exit', -1);
       });
 
       proc.on('exit', (code) => {
         if (!isCurrent()) return;
+        // Clear BEFORE emitting: a listener may react by starting a new tunnel
+        // (that is exactly what auto-reconnect does), and it must not find this
+        // one still claiming to be alive.
+        this.proc = null;
         this.emit('exit', code);
         if (!settled) {
           settled = true;
@@ -89,7 +106,6 @@ class XrayProcess extends EventEmitter {
     return new Promise((resolve) => {
       if (!this.isRunning) return resolve();
       const proc = this.proc;
-      const isAlive = () => proc.exitCode === null && !proc.killed;
       let settled = false;
       let killTimer = null;
       const finish = () => {
@@ -101,7 +117,8 @@ class XrayProcess extends EventEmitter {
       proc.once('exit', finish);
       proc.kill();
       killTimer = setTimeout(() => {
-        if (isAlive()) proc.kill('SIGKILL');
+        // Still here after three seconds of SIGTERM: stop asking.
+        if (this.proc === proc) proc.kill('SIGKILL');
         finish();
       }, 3000);
     });
