@@ -7,6 +7,7 @@
   "author": "Soul",
   "license": "MIT",
   "scripts": {
+    "test": "node --test \"test/*.test.cjs\"",
     "build:ui": "vite build",
     "start": "npm run build:ui && electron .",
     "dev": "vite build && electron .",
