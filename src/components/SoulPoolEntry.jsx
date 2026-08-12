@@ -34,7 +34,7 @@ function progressText(progress, connectionState) {
 }
 
 function SoulPoolEntry({
-  enabled, count, connectionState, progress, activeSoulProfile, busy,
+  enabled, count, connectionState, progress, activeSoulProfile, busy, cancelable,
   onSelect, onRefresh, refreshing,
 }) {
   const selecting = !!progress && ['fetching', 'probing', 'testing', 'connecting'].includes(progress.phase);
@@ -52,10 +52,16 @@ function SoulPoolEntry({
         className="soul-entry-main"
         onClick={onSelect}
         disabled={busy}
-        aria-pressed={enabled}
-        title="اتصال خودکار به بهترین سرور سول کانکشن"
+        aria-pressed={cancelable ? undefined : enabled}
+        title={cancelable
+          ? 'لغو انتخاب خودکار'
+          : 'اتصال خودکار به بهترین سرور سول کانکشن'}
       >
         <span className="soul-entry-badge">
+          {/* Stays the spinning radar while a sweep runs -- the badge's job is
+              to say "still working", and the cancel affordance is the row
+              itself (see the title). A stop glyph under the spin animation
+              would read as a stop button that is somehow spinning. */}
           <Icon name={selecting ? 'radar' : 'shield'} size={16} />
         </span>
         <span className="soul-entry-text">

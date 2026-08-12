@@ -1,9 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import Icon from './Icon.jsx';
 import { formatBytes, formatSpeed } from '../utils/format.js';
+import { toneForMs } from '../utils/ping.js';
 
 const SHORT_STATUS = {
   disconnected: 'قطع',
+  preparing: 'در حال آماده‌سازی…',
   connecting: 'در حال اتصال…',
   connected: 'متصل',
   disconnecting: 'در حال قطع…',
@@ -18,15 +20,10 @@ function formatDuration(ms) {
   return h > 0 ? `${pad(h)}:${pad(m)}:${pad(s)}` : `${pad(m)}:${pad(s)}`;
 }
 
-function latencyTone(ms) {
-  if (ms == null) return 'na';
-  if (ms < 0) return 'bad';
-  if (ms < 150) return 'good';
-  if (ms < 400) return 'mid';
-  return 'bad';
-}
-
-function StatusBar({ connectionState, activeProfile, connectedAt, latencyMs, selectedPing, traffic, notice }) {
+function StatusBar({
+  connectionState, activeProfile, connectedAt, latencyMs, selectedPing, traffic, notice,
+  killSwitchBlocking,
+}) {
   const connected = connectionState === 'connected';
   const [now, setNow] = useState(Date.now());
 
@@ -47,13 +44,19 @@ function StatusBar({ connectionState, activeProfile, connectedAt, latencyMs, sel
     ? '…'
     : ping == null ? '—' : ping < 0 ? 'بدون پاسخ' : `${ping}ms`;
 
+  // Kill Switch outranks the connection state in this segment: "قطع" is true
+  // but badly incomplete when the reason nothing works is that we are blocking
+  // every packet on purpose. The dot style for it already existed in the
+  // stylesheet -- until now nothing on this screen ever applied it.
+  const blocking = !!killSwitchBlocking && !connected;
+
   return (
     <footer className="status-rail">
       <div className="rail-seg">
         <span className="rail-label">وضعیت</span>
         <span className="rail-value">
-          <span className={`status-dot ${connectionState}`} />
-          {SHORT_STATUS[connectionState]}
+          <span className={`status-dot ${blocking ? 'blocking' : connectionState}`} />
+          {blocking ? 'مسدود' : SHORT_STATUS[connectionState]}
         </span>
       </div>
 
@@ -66,7 +69,7 @@ function StatusBar({ connectionState, activeProfile, connectedAt, latencyMs, sel
 
       <div className="rail-seg">
         <span className="rail-label">پینگ</span>
-        <span className={`rail-value mono tone-${latencyTone(ping)}`}>{pingText}</span>
+        <span className={`rail-value mono tone-${toneForMs(ping)}`}>{pingText}</span>
       </div>
 
       <div className="rail-seg">
@@ -99,12 +102,25 @@ function StatusBar({ connectionState, activeProfile, connectedAt, latencyMs, sel
         <span className="rail-value mono">{duration ?? '—'}</span>
       </div>
 
-      {notice && (
-        <div className={`rail-notice ${notice.type === 'error' ? 'error' : ''}`} role="status">
-          <Icon name="info" size={14} />
-          {notice.msg}
-        </div>
-      )}
+      {/* Always mounted, for two reasons. An aria-live region has to exist in
+          the DOM *before* its content changes or assistive tech has nothing to
+          watch and the announcement is simply dropped. And the notice now
+          floats above the rail instead of covering it: a message that lasts
+          2.6s must not take the duration, speed and ping readouts away --
+          least of all at the moment of connect, which is exactly when it
+          fires and exactly when those numbers matter most. */}
+      <div
+        className={`rail-notice ${notice ? 'visible' : ''} ${notice?.type === 'error' ? 'error' : ''}`}
+        role="status"
+        aria-live="polite"
+      >
+        {notice && (
+          <>
+            <Icon name={notice.type === 'error' ? 'info' : 'check'} size={14} />
+            <span className="rail-notice-text">{notice.msg}</span>
+          </>
+        )}
+      </div>
     </footer>
   );
 }

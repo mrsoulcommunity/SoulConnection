@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import Icon from './Icon.jsx';
 import { isoToFlag, countryNameFa } from '../utils/geo.js';
+import { qualityForMs } from '../utils/ping.js';
 
 // ---- Tunnel Status ----
 //
@@ -67,17 +68,6 @@ function locationOf(status) {
   return { flag, text: [status.city, country].filter(Boolean).join('، ') };
 }
 
-// Connection quality, from the only number that reflects the whole path:
-// round-trip latency measured through the tunnel itself.
-function qualityOf(ms) {
-  if (typeof ms !== 'number') return { tone: 'na', label: '—', bars: 0 };
-  if (ms < 0) return { tone: 'bad', label: 'بدون پاسخ', bars: 0 };
-  if (ms < 80) return { tone: 'great', label: 'عالی', bars: 4 };
-  if (ms < 160) return { tone: 'good', label: 'خوب', bars: 3 };
-  if (ms < 320) return { tone: 'mid', label: 'متوسط', bars: 2 };
-  return { tone: 'bad', label: 'ضعیف', bars: 1 };
-}
-
 function QualityBars({ bars, tone }) {
   return (
     <span className={`tq-bars tone-${tone}`} aria-hidden="true">
@@ -119,6 +109,14 @@ export default function TunnelStatus({ connectionState, latencyMs, activeProfile
     return () => { alive = false; if (off) off(); };
   }, []);
 
+  // The panel used to unmount on disconnect, which reset this state for free.
+  // Now that it only collapses, drop the reading explicitly -- otherwise the
+  // next connect would show the PREVIOUS tunnel's address for the moment
+  // between the panel opening and the first fresh probe landing.
+  useEffect(() => {
+    if (connectionState === 'disconnected') setStatus({ phase: 'idle' });
+  }, [connectionState]);
+
   const toggleExpanded = useCallback(() => {
     setExpanded((v) => {
       saveExpanded(!v);
@@ -157,14 +155,19 @@ export default function TunnelStatus({ connectionState, latencyMs, activeProfile
       .catch(() => onToast?.('کپی ناموفق بود', 'error'));
   }, [status.ip, onToast]);
 
-  if (connectionState === 'disconnected' || connectionState === 'disconnecting') return null;
+  // Not unmounted while there's no tunnel, only collapsed. Mounting and
+  // unmounting a ~58px block that sits under a `flex: 1` stage made the connect
+  // ring jump by half that on every connect and every disconnect. Kept in the
+  // tree, its height is a transition instead of a reflow, and the hero stays
+  // put. Hooks all run above this line, so nothing about their order changes.
+  const shown = connectionState === 'connected' || connectionState === 'connecting';
 
   const connecting = connectionState === 'connecting';
   const phase = connecting ? 'probing' : status.phase;
   const working = phase === 'probing' || phase === 'refreshing' || busy;
   const hasIp = !!status.ip && phase !== 'idle';
   const location = hasIp ? locationOf(status) : null;
-  const quality = qualityOf(latencyMs);
+  const quality = qualityForMs(typeof latencyMs === 'number' ? latencyMs : null);
   // Only claim the address changed when there is a genuine before-and-after:
   // the baseline is sampled while disconnected, so it may legitimately be
   // unknown (first run, offline at launch) -- in which case we say nothing.
@@ -174,7 +177,14 @@ export default function TunnelStatus({ connectionState, latencyMs, activeProfile
   const stateLabel = connecting ? 'در حال برقراری تونل…' : PHASE_LABEL[phase] || '—';
 
   return (
-    <section className={`tunnel-panel ${phase} ${expanded ? 'expanded' : 'compact'}`}>
+    // The slot is what collapses; the panel inside it is just the card. The
+    // height is animated as a grid row (0fr <-> 1fr) rather than a max-height,
+    // because max-height has to be capped at a guess and the panel's real
+    // height is nowhere near that cap -- the reveal raced through the first
+    // 50px in a fortieth of the duration and still read as a snap.
+    <div className={`tunnel-slot ${shown ? '' : 'hidden'}`} aria-hidden={!shown} inert={!shown ? '' : undefined}>
+      <div className="tunnel-slot-inner">
+        <section className={`tunnel-panel ${phase} ${expanded ? 'expanded' : 'compact'}`}>
       {/* The header IS the compact bar. In compact mode it carries the whole
           summary; expanded, it becomes the title row and the detail unfolds
           beneath it. One element, one height transition, no swap. */}
@@ -339,6 +349,8 @@ export default function TunnelStatus({ connectionState, latencyMs, activeProfile
           )}
         </footer>
       </div>
-    </section>
+        </section>
+      </div>
+    </div>
   );
 }

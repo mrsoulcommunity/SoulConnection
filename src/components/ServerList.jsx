@@ -71,7 +71,7 @@ const ServerCard = React.memo(function ServerCard({ profile, active, ping, onSel
   );
 });
 
-export default function ServerList({
+function ServerList({
   profiles, subscriptions, activeProfileId, connectionState, pings, updatingSubs, refreshingSubIds,
   onSelect, onDelete, onPing, onPingAll, onAdd,
   onRefreshSubscription, onUpdateAllSubscriptions, onDeleteSubscription,
@@ -263,6 +263,24 @@ export default function ServerList({
       )}
 
       <div className="list">
+        {/* A filter that matches nothing used to render an empty box and no
+            explanation -- indistinguishable from the list having failed to
+            load. The toolbar stays put so the way out is where the way in was. */}
+        {groups.length === 0 && (
+          <div className="list-empty">
+            <Icon name="search" size={22} />
+            <p>
+              {query.trim()
+                // <bdi> so a Latin or mixed query can't reorder the Farsi
+                // sentence it is quoted inside.
+                ? <>سروری با «<bdi>{query.trim()}</bdi>» پیدا نشد</>
+                : 'سروری برای نمایش نیست'}
+            </p>
+            {query.trim() && (
+              <button className="btn" onClick={() => setQuery('')}>پاک‌کردن جست‌وجو</button>
+            )}
+          </div>
+        )}
         {groups.map((group) => {
           const usageInfo = !group.local ? subUsageInfo(group.sub) : null;
           const critical = usageInfo && (usageInfo.expired || usageInfo.exhausted);
@@ -437,6 +455,14 @@ export default function ServerList({
     </div>
   );
 }
+
+// Memoized for the same reason ServerCard is, one level up: App re-renders on
+// every 1s traffic tick, and without this the whole sidebar body -- toolbar,
+// every group header, every usage bar -- was rebuilt and reconciled once a
+// second for a number rendered in the footer. Every function prop it takes is
+// already useCallback'd in App, and the `initial*` props come from a ref, so
+// the comparison actually holds.
+export default React.memo(ServerList);
 
 function useMemoGroups(filtered, subscriptions, pings) {
   return useMemo(() => {

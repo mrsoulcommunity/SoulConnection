@@ -40,7 +40,8 @@ export function pingTone(entry) {
 }
 
 // Tone for a bare number (group "best ping" chips, which aggregate rather than
-// hold an entry of their own).
+// hold an entry of their own). This is THE latency scale -- nothing anywhere
+// else in the app is allowed to invent its own thresholds.
 export function toneForMs(ms) {
   if (ms == null) return 'na';
   if (ms < 0) return 'bad';
@@ -48,6 +49,28 @@ export function toneForMs(ms) {
   if (ms < 140) return 'good';
   if (ms < 300) return 'mid';
   return 'bad';
+}
+
+// The same scale, plus the words and the bar count that go with it.
+//
+// The status rail and the tunnel panel sit one above the other and describe
+// the SAME measurement, so they have to agree by construction. They used to
+// each carry their own thresholds (150/400 and 80/160/320), which is how 350ms
+// came to be amber "متوسط" in the rail and red "ضعیف" in the panel at the same
+// instant.
+const QUALITY_LABEL = { great: 'عالی', good: 'خوب', mid: 'متوسط', bad: 'ضعیف', na: '—' };
+const QUALITY_BARS = { great: 4, good: 3, mid: 2, bad: 1, na: 0 };
+
+export function qualityForMs(ms) {
+  const tone = toneForMs(ms);
+  // A negative reading is a non-answer, not a very slow answer: it earns the
+  // bad tone but no bars and its own wording.
+  const noAnswer = typeof ms === 'number' && ms < 0;
+  return {
+    tone,
+    label: noAnswer ? 'بدون پاسخ' : QUALITY_LABEL[tone],
+    bars: noAnswer ? 0 : QUALITY_BARS[tone],
+  };
 }
 
 const AGE = (at) => {

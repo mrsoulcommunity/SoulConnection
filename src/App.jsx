@@ -116,6 +116,23 @@ export default function App() {
   const [failover, setFailover] = useState(null);
   const [failoverEvent, setFailoverEvent] = useState(null);
 
+  // ---- One connection phase for the whole home screen ----
+  //
+  // `connectionState` is main's view, and only part of the truth: it stays
+  // 'disconnected' for the entire window in which the renderer has a connect
+  // call in flight or a Soul pool sweep is running. That window is exactly
+  // where the hero used to offer an enabled button whose handler returned on
+  // `if (busy) return`, and where the pool row disabled its own cancel. Folding
+  // the in-flight signals into one phase (see `heroPhase` below) is what stops
+  // the hero, the rail and the sidebar from being able to contradict each
+  // other. Derived, never stored -- this adds no new source of truth.
+  const soulSweeping = !!soulProgress
+    && ['fetching', 'probing', 'testing', 'connecting'].includes(soulProgress.phase);
+  // A sweep in any of its phases can be called off, not just once main has
+  // reached 'connecting'. Until this covered the earlier phases there was a
+  // stretch of several seconds with no way to stop a running sweep.
+  const soulCancelable = soulSweeping || connectionState === 'connecting';
+
   useEffect(() => {
     window.soul.windowIsMaximized?.().then(setWindowMaximized).catch(() => {});
     const off = window.soul.onWindowState?.(({ maximized }) => setWindowMaximized(maximized));
@@ -164,30 +181,43 @@ export default function App() {
     return () => { cancelled = true; };
   }, []);
 
-  // Ctrl+K (or Ctrl+F) opens the server finder from anywhere.
-  useEffect(() => {
-    const onKey = (e) => {
-      if ((e.ctrlKey || e.metaKey) && (e.key === 'k' || e.key === 'f')) {
-        e.preventDefault();
-        setFinderOpen((v) => !v);
-      }
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, []);
-
-  // Global Ctrl+V: smart-detect clipboard content (config link vs subscription
-  // URL) and add it, unless the user is pasting into a real field/modal.
   const showAddRef = useRef(showAdd);
   useEffect(() => { showAddRef.current = showAdd; }, [showAdd]);
 
+  // Every global shortcut has to answer the same question before it fires: is
+  // the user typing into something, or does a modal already own the screen?
+  // That rule was written out for Ctrl+V and not at all for Ctrl+K, which is
+  // why Ctrl+F inside the sidebar's own search box opened the finder, and why
+  // Ctrl+K could open the finder *behind* a modal that was already up.
+  const shortcutBlocked = useCallback((e) => {
+    const t = e.target;
+    if (/INPUT|TEXTAREA|SELECT/.test(t.tagName) || t.isContentEditable) return true;
+    if (showAddRef.current) return true;
+    return document.body.dataset.modalOpen === 'true';
+  }, []);
+
+  // Ctrl+K (or Ctrl+F) opens the server finder from anywhere.
+  useEffect(() => {
+    const onKey = (e) => {
+      if (!(e.ctrlKey || e.metaKey)) return;
+      const k = e.key.toLowerCase();
+      if (k !== 'k' && k !== 'f') return;
+      // Closing is always allowed: the finder's own search box is an input, so
+      // the guard would otherwise trap the user inside the thing they opened.
+      if (!finderOpen && shortcutBlocked(e)) return;
+      e.preventDefault();
+      setFinderOpen((v) => !v);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [finderOpen, shortcutBlocked]);
+
+  // Global Ctrl+V: smart-detect clipboard content (config link vs subscription
+  // URL) and add it, unless the user is pasting into a real field/modal.
   useEffect(() => {
     const onKey = async (e) => {
       if (!(e.ctrlKey || e.metaKey) || e.key.toLowerCase() !== 'v') return;
-      const inField = /INPUT|TEXTAREA|SELECT/.test(e.target.tagName) || e.target.isContentEditable;
-      if (inField) return;
-      if (showAddRef.current || finderOpen) return;
-      if (document.body.dataset.modalOpen === 'true') return;
+      if (finderOpen || shortcutBlocked(e)) return;
 
       e.preventDefault();
       let text;
@@ -217,7 +247,7 @@ export default function App() {
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [finderOpen]);
+  }, [finderOpen, shortcutBlocked]);
 
   useEffect(() => {
     refresh();
@@ -347,21 +377,24 @@ export default function App() {
         // The pool picks the server; this is the whole point of the mode.
         setSoulProgress({ phase: 'fetching' });
         await window.soul.soulConnectBest();
-      } else if (settings?.autoSelectBestServer && profiles.length > 1) {
+      // `> 0`, not `> 1`: with a single config "choose the best" trivially
+      // chooses it. Requiring two made the hero offer automatic selection and
+      // then answer the click with "pick a config first".
+      } else if (settings?.autoSelectBestServer && profiles.length > 0) {
         // "Let it choose" is exactly what the toggle asks for. Clicking a
         // specific server in the sidebar still connects to that one.
         const r = await window.soul.connectBest();
         if (r?.profile) showToast(`بهترین سرور انتخاب شد: ${r.profile.name}`);
       } else {
         if (!activeProfileId) {
-          showToast('اول یک کانفیگ را انتخاب کن');
+          showToast('اول یک کانفیگ را انتخاب کن', 'error');
           setBusy(false);
           return;
         }
         await window.soul.connect(activeProfileId);
       }
     } catch (err) {
-      showToast(err.message || 'خطا در اتصال');
+      showToast(err.message || 'خطا در اتصال', 'error');
     } finally {
       setBusy(false);
     }
@@ -448,7 +481,7 @@ export default function App() {
   // doing either mid-sweep cancels the sweep rather than queueing behind it.
   const handleSoulSelect = useCallback(async () => {
     try {
-      if (connectionState === 'connecting') {
+      if (soulCancelable) {
         await window.soul.soulCancel();
         setSoulProgress(null);
         return;
@@ -460,7 +493,7 @@ export default function App() {
     } catch (err) {
       showToast(err.message || 'خطا', 'error');
     }
-  }, [soulMode, connectionState, showToast]);
+  }, [soulMode, soulCancelable, showToast]);
 
   const handleSoulRefresh = useCallback(async () => {
     setSoulRefreshing(true);
@@ -488,7 +521,7 @@ export default function App() {
       try {
         await window.soul.connect(id);
       } catch (err) {
-        showToast(err.message || 'خطا در اتصال');
+        showToast(err.message || 'خطا در اتصال', 'error');
       } finally {
         setBusy(false);
       }
@@ -541,7 +574,7 @@ export default function App() {
     try {
       await window.soul.connect(id);
     } catch (err) {
-      showToast(err.message || 'خطا در اتصال');
+      showToast(err.message || 'خطا در اتصال', 'error');
     } finally {
       setBusy(false);
     }
@@ -553,7 +586,7 @@ export default function App() {
     try {
       await window.soul.disconnect();
     } catch (err) {
-      showToast(err.message || 'خطا در قطع اتصال');
+      showToast(err.message || 'خطا در قطع اتصال', 'error');
     } finally {
       setBusy(false);
     }
@@ -564,7 +597,7 @@ export default function App() {
       const updated = await window.soul.setFavorite(profile.id, !profile.favorite);
       setProfiles(updated);
     } catch (err) {
-      showToast(err.message || 'خطا در ذخیره');
+      showToast(err.message || 'خطا در ذخیره', 'error');
     }
   }, [showToast]);
 
@@ -598,7 +631,7 @@ export default function App() {
       await refresh();
       showToast(`${added.length} کانفیگ به‌روزرسانی شد`);
     } catch (err) {
-      showToast(err.message || 'خطا در به‌روزرسانی');
+      showToast(err.message || 'خطا در به‌روزرسانی', 'error');
     } finally {
       setRefreshingSubIds((prev) => {
         const next = new Set(prev);
@@ -616,7 +649,7 @@ export default function App() {
       await refresh();
       showToast('همه‌ی ساب‌اسکریپشن‌ها به‌روزرسانی شدند');
     } catch (err) {
-      showToast(err.message || 'خطا در به‌روزرسانی');
+      showToast(err.message || 'خطا در به‌روزرسانی', 'error');
     } finally {
       setUpdatingSubs(false);
     }
@@ -640,7 +673,7 @@ export default function App() {
       await window.soul.setMode(mode);
       setConnectionMode(mode);
     } catch (err) {
-      showToast(err.message || 'خطا در تغییر حالت');
+      showToast(err.message || 'خطا در تغییر حالت', 'error');
     }
   }, [connectionMode, connectionState, showToast]);
 
@@ -649,7 +682,7 @@ export default function App() {
       const updated = await window.soul.updateSettings(patch);
       setSettings(updated);
     } catch (err) {
-      showToast(err.message || 'خطا در ذخیره تنظیمات');
+      showToast(err.message || 'خطا در ذخیره تنظیمات', 'error');
     }
   }
 
@@ -661,7 +694,7 @@ export default function App() {
       setSettings(updated);
       return updated;
     } catch (err) {
-      showToast(err.message || 'خطا در ذخیره تنظیمات');
+      showToast(err.message || 'خطا در ذخیره تنظیمات', 'error');
       throw err;
     }
   }
@@ -671,7 +704,7 @@ export default function App() {
       const res = await window.soul.exportBackup();
       if (!res.canceled) showToast('پشتیبان‌گیری با موفقیت انجام شد');
     } catch (err) {
-      showToast(err.message || 'خطا در پشتیبان‌گیری');
+      showToast(err.message || 'خطا در پشتیبان‌گیری', 'error');
     }
   }
 
@@ -683,7 +716,7 @@ export default function App() {
         showToast(`${res.profiles} کانفیگ بازیابی شد`);
       }
     } catch (err) {
-      showToast(err.message || 'خطا در بازیابی');
+      showToast(err.message || 'خطا در بازیابی', 'error');
     }
   }
 
@@ -756,6 +789,36 @@ export default function App() {
     [profiles, activeProfileId, activeSoulProfile]
   );
 
+  const heroPhase = useMemo(() => {
+    if (connectionState !== 'disconnected') return connectionState;
+    if (soulSweeping || busy) return 'preparing';
+    return 'disconnected';
+  }, [connectionState, soulSweeping, busy]);
+
+  // What pressing connect would actually reach. Not always a profile: the Soul
+  // pool and "choose the best for me" are real selections with no
+  // `activeProfileId` behind them, and reading `activeProfile` alone is how the
+  // hero came to claim no server was selected while the sidebar showed one.
+  const heroTarget = useMemo(() => {
+    if (activeProfile) {
+      return {
+        name: activeProfile.name || activeProfile.address,
+        detail: `${activeProfile.address}:${activeProfile.port}`,
+        mono: true,
+      };
+    }
+    if (soulMode) {
+      return {
+        name: 'سرورهای سول کانکشن',
+        detail: soulCount ? `${soulCount} سرور — انتخاب خودکار بهترین` : 'انتخاب خودکار بهترین',
+      };
+    }
+    if (settings?.autoSelectBestServer && profiles.length > 0) {
+      return { name: 'انتخاب خودکار بهترین سرور', detail: `از میان ${profiles.length} کانفیگ` };
+    }
+    return null;
+  }, [activeProfile, soulMode, soulCount, settings?.autoSelectBestServer, profiles.length]);
+
   // The sidebar card appears for every state that has something to say about a
   // specific release, and only that. A dismissal silences the offer, but never
   // a download that is already running or an install waiting to happen -- those
@@ -795,8 +858,9 @@ export default function App() {
             connectionState={connectionState}
             progress={soulProgress}
             activeSoulProfile={activeSoulProfile}
-            busy={busy && connectionState !== 'connecting'}
+            busy={busy && !soulCancelable}
             refreshing={soulRefreshing}
+            cancelable={soulCancelable}
             onSelect={handleSoulSelect}
             onRefresh={handleSoulRefresh}
           />
@@ -883,9 +947,9 @@ export default function App() {
           {tab === 'servers' ? (
             <>
               <ConnectHero
-                connectionState={connectionState}
+                phase={heroPhase}
                 connectionMode={connectionMode}
-                activeProfile={activeProfile}
+                target={heroTarget}
                 onToggle={handleToggleConnect}
                 onSetMode={handleSetMode}
               />
@@ -985,12 +1049,13 @@ export default function App() {
           )}
 
           <StatusBar
-            connectionState={connectionState}
+            connectionState={heroPhase}
             activeProfile={activeProfile}
             connectedAt={connectedAt}
             latencyMs={latencyMs}
             selectedPing={activeProfileId ? pingMs(pings[activeProfileId]) : undefined}
             traffic={traffic}
+            killSwitchBlocking={killSwitchBlocking}
             notice={toast}
           />
         </main>
