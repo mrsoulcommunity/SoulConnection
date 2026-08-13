@@ -53,9 +53,13 @@ function ConnectHero({ phase, connectionMode, target, onToggle, onSetMode }) {
       {/* A live region: connecting and disconnecting are the two things on this
           screen a screen-reader user most needs told, and they happen without
           any focus change to announce them. */}
+      {/* The caption is keyed on the phase so React replaces the element rather
+          than editing its text: a text swap is the one change CSS cannot
+          transition, and it was the only hard cut left in the connect
+          sequence. `.stage-status-text` replays its entrance on each new key. */}
       <div className="stage-status" role="status" aria-live="polite">
         <span className={`status-dot ${phase}`} />
-        {STATUS_TEXT[phase]}
+        <span key={phase} className="stage-status-text">{STATUS_TEXT[phase]}</span>
       </div>
 
       {/* `target` is what pressing the button would actually connect to, which

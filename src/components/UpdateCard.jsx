@@ -30,7 +30,7 @@ function StatCell({ label, value, wide }) {
   );
 }
 
-export default function UpdateCard({ update, onDownload, onInstall, onCancelDownload, onCancelAuto, onDismiss }) {
+function UpdateCard({ update, onDownload, onInstall, onCancelDownload, onCancelAuto, onDismiss }) {
   const [now, setNow] = useState(Date.now());
   const seconds = countdownSeconds(update, now);
   const armed = seconds !== null;
@@ -98,14 +98,15 @@ export default function UpdateCard({ update, onDownload, onInstall, onCancelDown
           aria-valuemin={0}
           aria-valuemax={100}
         >
+          {/* scaleX rather than width -- see the note on .uc-fill in index.css. */}
           <div
             className="uc-fill"
             style={{
-              width: verifying
-                ? '100%'
+              transform: `scaleX(${verifying
+                ? 1
                 : armed
-                  ? `${(seconds / ((update.autoInstallDelayMs || 15000) / 1000)) * 100}%`
-                  : `${pct}%`,
+                  ? seconds / ((update.autoInstallDelayMs || 15000) / 1000)
+                  : pct / 100})`,
             }}
           />
         </div>
@@ -158,3 +159,8 @@ export default function UpdateCard({ update, onDownload, onInstall, onCancelDown
     </div>
   );
 }
+
+// Sits in the sidebar for the whole life of an offer, through every unrelated
+// re-render App does. Its own progress arrives on `update`, so anything that
+// leaves that prop untouched has nothing to say to this card.
+export default React.memo(UpdateCard);

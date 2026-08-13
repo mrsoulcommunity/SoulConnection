@@ -84,7 +84,7 @@ function SoulPoolEntry({
         <div className="soul-entry-progress">
           <div
             className="soul-entry-progress-fill"
-            style={{ width: `${Math.round((progress.done / progress.total) * 100)}%` }}
+            style={{ transform: `scaleX(${progress.done / progress.total})` }}
           />
         </div>
       )}

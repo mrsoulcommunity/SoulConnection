@@ -1,7 +1,8 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useSyncExternalStore } from 'react';
 import Icon from './Icon.jsx';
 import { formatBytes, formatSpeed } from '../utils/format.js';
 import { toneForMs } from '../utils/ping.js';
+import * as telemetry from '../telemetryStore.js';
 
 const SHORT_STATUS = {
   disconnected: 'قطع',
@@ -21,16 +22,32 @@ function formatDuration(ms) {
 }
 
 function StatusBar({
-  connectionState, activeProfile, connectedAt, latencyMs, selectedPing, traffic, notice,
+  connectionState, activeProfile, connectedAt, selectedPing, notice,
   killSwitchBlocking,
 }) {
   const connected = connectionState === 'connected';
+  // Speed and latency are read straight from the store rather than taken as
+  // props, so the once-a-second tick that produces them re-renders this footer
+  // and nothing else. See telemetryStore.js.
+  const { traffic, latencyMs } = useSyncExternalStore(telemetry.subscribe, telemetry.getSnapshot);
   const [now, setNow] = useState(Date.now());
 
+  // Aligned to the next whole second rather than to whenever the tunnel came
+  // up: an interval started at an arbitrary offset makes the counter appear to
+  // skip, because the value it prints only changes on the second boundary it
+  // straddles. One timeout to reach the boundary, then a plain interval.
   useEffect(() => {
-    if (!connected || !connectedAt) return;
-    const timer = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(timer);
+    if (!connected || !connectedAt) return undefined;
+    let interval = null;
+    const tick = () => setNow(Date.now());
+    const start = setTimeout(() => {
+      tick();
+      interval = setInterval(tick, 1000);
+    }, 1000 - (Date.now() % 1000));
+    return () => {
+      clearTimeout(start);
+      if (interval) clearInterval(interval);
+    };
   }, [connected, connectedAt]);
 
   const duration = connected && connectedAt ? formatDuration(now - connectedAt) : null;
@@ -127,5 +144,7 @@ function StatusBar({
 
 // `selectedPing`/`activeProfile` are usually unchanged on any given ping-all
 // tick (only the pinged profile's value moves), so memoizing skips a re-render
-// of this whole footer for every other tick.
+// of this whole footer for every other tick. The telemetry it subscribes to
+// goes straight past the memo, which is the point: the numbers move, the props
+// don't, and nothing above this component is disturbed.
 export default React.memo(StatusBar);

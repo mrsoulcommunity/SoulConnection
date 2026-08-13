@@ -8,12 +8,33 @@ import * as engine from '../finder/testEngine.js';
 import { formatBytes, relativeTime, subUsageInfo } from '../utils/format.js';
 import { isMeasuring, pingMs, pingTone, pingTitle, toneForMs } from '../utils/ping.js';
 
-function groupStats(items, pings) {
-  const totalBytes = items.reduce((sum, p) => sum + (p.totalBytes || 0), 0);
-  const measured = items.map((p) => pingMs(pings[p.id])).filter((v) => v != null && v >= 0);
-  const bestPing = measured.length ? Math.min(...measured) : undefined;
-  return { totalBytes, bestPing };
+function groupStats(items) {
+  return { totalBytes: items.reduce((sum, p) => sum + (p.totalBytes || 0), 0) };
 }
+
+// The group's best measurement, isolated in its own memoized component.
+//
+// It used to be computed inside the grouping memo, which made `pings` a
+// dependency of the entire group structure: every single measurement that
+// landed rebuilt every group in the sidebar, and a sweep over a few hundred
+// servers did that a few hundred times. Grouping now depends only on the
+// profiles, and the one thing that genuinely moves with a measurement -- this
+// pill -- is the only thing that re-renders.
+const GroupPing = React.memo(function GroupPing({ items, pings }) {
+  let best;
+  for (const p of items) {
+    const ms = pingMs(pings[p.id]);
+    if (ms != null && ms >= 0 && (best === undefined || ms < best)) best = ms;
+  }
+  return (
+    <span
+      className={`stat-chip ping ${toneForMs(best ?? null)}`}
+      title={best !== undefined ? 'بهترین پینگ اندازه‌گیری‌شده در این گروه' : 'هنوز پینگی گرفته نشده'}
+    >
+      {best !== undefined ? `${best}ms` : '—'}
+    </span>
+  );
+});
 
 // The measured value, or the reason there isn't one. Deliberately terse: this
 // pill sits in a 296px sidebar next to a name that needs the room, and the full
@@ -83,7 +104,7 @@ function SweepStrip({ sweep, onDismiss }) {
   return (
     <div className={`ping-sweep ${sweep.running ? 'running' : 'settled'}`}>
       <div className="ping-sweep-track">
-        <span className="ping-sweep-fill" style={{ width: `${percent}%` }} />
+        <span className="ping-sweep-fill" style={{ transform: `scaleX(${percent / 100})` }} />
       </div>
       <div className="ping-sweep-row">
         {sweep.running ? (
@@ -247,6 +268,11 @@ function ServerList({
     setCtxMenu({ x: e.clientX, y: e.clientY, title: sub.name, items });
   }, [onRefreshSubscription, requestDeleteSubscription, copyText, startSubTest]);
 
+  // Only the ping sort actually reads measurements. Making `pings` an
+  // unconditional dependency meant a landing measurement re-filtered and
+  // re-sorted the whole list even while sorted by name -- work whose result was
+  // identical every time. `null` here is a stable value, so the memo holds.
+  const pingsForSort = sortBy === 'ping' ? pings : null;
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     let list = !q ? profiles : profiles.filter((p) =>
@@ -254,19 +280,19 @@ function ServerList({
     );
     if (sortBy === 'name') {
       list = [...list].sort((a, b) => (a.name || '').localeCompare(b.name || ''));
-    } else if (sortBy === 'ping') {
+    } else if (pingsForSort) {
       list = [...list].sort((a, b) => {
         // Unmeasured and unreachable both sink to the bottom rather than
         // pretending to be fast.
-        const va = pingMs(pings[a.id]);
-        const vb = pingMs(pings[b.id]);
+        const va = pingMs(pingsForSort[a.id]);
+        const vb = pingMs(pingsForSort[b.id]);
         return (va == null ? Infinity : va) - (vb == null ? Infinity : vb);
       });
     }
     return list;
-  }, [profiles, query, sortBy, pings]);
+  }, [profiles, query, sortBy, pingsForSort]);
 
-  const groups = useMemoGroups(filtered, subscriptions, pings);
+  const groups = useMemoGroups(filtered, subscriptions);
 
   // Measures exactly what is on screen: with a search or a filter active,
   // sweeping the servers the user cannot see is work they did not ask for.
@@ -375,12 +401,7 @@ function ServerList({
                       {group.stats.totalBytes > 0 && (
                         <span className="stat-chip size">{formatBytes(group.stats.totalBytes)}</span>
                       )}
-                      <span
-                        className={`stat-chip ping ${toneForMs(group.stats.bestPing ?? null)}`}
-                        title={group.stats.bestPing !== undefined ? 'بهترین پینگ اندازه‌گیری‌شده در این گروه' : 'هنوز پینگی گرفته نشده'}
-                      >
-                        {group.stats.bestPing !== undefined ? `${group.stats.bestPing}ms` : '—'}
-                      </span>
+                      <GroupPing items={group.items} pings={pings} />
                     </span>
                     {!group.local && <span className="group-meta">{relativeTime(group.sub.lastUpdated)}</span>}
                   </button>
@@ -534,7 +555,7 @@ function ServerList({
 // the comparison actually holds.
 export default React.memo(ServerList);
 
-function useMemoGroups(filtered, subscriptions, pings) {
+function useMemoGroups(filtered, subscriptions) {
   return useMemo(() => {
     const bySub = new Map();
     const noGroup = [];
@@ -552,11 +573,11 @@ function useMemoGroups(filtered, subscriptions, pings) {
       }
     }
     const groups = [];
-    if (noGroup.length) groups.push({ key: 'none', sub: null, local: true, items: noGroup, stats: groupStats(noGroup, pings) });
+    if (noGroup.length) groups.push({ key: 'none', sub: null, local: true, items: noGroup, stats: groupStats(noGroup) });
     for (const sub of subscriptions) {
       const items = bySub.get(sub.id) || [];
-      if (items.length) groups.push({ key: sub.id, sub, items, stats: groupStats(items, pings) });
+      if (items.length) groups.push({ key: sub.id, sub, items, stats: groupStats(items) });
     }
     return groups;
-  }, [filtered, subscriptions, pings]);
+  }, [filtered, subscriptions]);
 }

@@ -145,14 +145,18 @@ export default function UpdatePanel({
             aria-valuemin={0}
             aria-valuemax={100}
           >
+            {/* scaleX, not width: the bar is updated five times a second while
+                a download runs, and animating width re-runs layout on every
+                one of those frames. The element is always full width and only
+                its transform moves. */}
             <div
               className="up-fill"
               style={{
-                width: status === 'verifying'
-                  ? '100%'
+                transform: `scaleX(${status === 'verifying'
+                  ? 1
                   : armed
-                    ? `${(seconds / ((update.autoInstallDelayMs || 15000) / 1000)) * 100}%`
-                    : `${pct}%`,
+                    ? seconds / ((update.autoInstallDelayMs || 15000) / 1000)
+                    : pct / 100})`,
               }}
             />
           </div>

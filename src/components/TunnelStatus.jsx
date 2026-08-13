@@ -1,7 +1,8 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState, useSyncExternalStore } from 'react';
 import Icon from './Icon.jsx';
 import { isoToFlag, countryNameFa } from '../utils/geo.js';
 import { qualityForMs } from '../utils/ping.js';
+import * as telemetry from '../telemetryStore.js';
 
 // ---- Tunnel Status ----
 //
@@ -24,8 +25,9 @@ import { qualityForMs } from '../utils/ping.js';
 // swapping one box for another.
 //
 // Owns its own IPC subscription rather than taking state from App: nothing else
-// in the tree needs it, and App's state is already re-rendered every traffic
-// tick.
+// in the tree needs it. Latency comes from telemetryStore.js for the same
+// reason -- it moves once a second, and routing that through App would re-render
+// the whole app to redraw four quality bars.
 
 // Its own key, deliberately not part of the "Restore Previous Session" blob:
 // this is a direct UI affordance the user operates with a visible control, and
@@ -95,7 +97,11 @@ function Field({ label, children, wide, mono, title, onClick, className = '' }) 
   );
 }
 
-export default function TunnelStatus({ connectionState, latencyMs, activeProfile, systemProxy, onToast }) {
+function TunnelStatus({ connectionState, activeProfile, systemProxy, onToast }) {
+  // The quality bars are the only thing here that moves on the telemetry tick,
+  // so it is subscribed to directly instead of arriving as a prop -- App no
+  // longer re-renders for it at all. See telemetryStore.js.
+  const { latencyMs } = useSyncExternalStore(telemetry.subscribe, telemetry.getSnapshot);
   const [status, setStatus] = useState({ phase: 'idle' });
   const [busy, setBusy] = useState(false);
   const [now, setNow] = useState(Date.now());
@@ -258,10 +264,14 @@ export default function TunnelStatus({ connectionState, latencyMs, activeProfile
         </button>
       </header>
 
-      {/* Kept mounted and collapsed by max-height so the transition is a real
-          reveal in both directions; aria-hidden + inert keep the collapsed
-          content out of the tab order and off screen readers. */}
+      {/* Kept mounted and collapsed to a zero-height grid row, so the reveal
+          animates the content's real height in both directions; aria-hidden +
+          inert keep the collapsed content out of the tab order and off screen
+          readers. The inner wrapper is required, not decorative: the 1fr <-> 0fr
+          collapse only works with a single grid item, and it is what owns the
+          clipping while the row shrinks. */}
       <div className="tunnel-body" aria-hidden={!expanded} inert={!expanded ? '' : undefined}>
+        <div className="tunnel-body-inner">
         {phase === 'error' && !hasIp ? (
           <div className="tunnel-error">
             <Icon name="info" size={13} />
@@ -348,9 +358,17 @@ export default function TunnelStatus({ connectionState, latencyMs, activeProfile
             <span className="tunnel-note warn">آخرین بررسی ناموفق بود — مقدار بالا از بررسی قبلی است</span>
           )}
         </footer>
+        </div>
       </div>
         </section>
       </div>
     </div>
   );
 }
+
+// App re-renders whenever anything in the app changes -- a search keystroke in
+// the sidebar, a ping landing, a settings toggle. None of that moves this
+// panel, and rebuilding a card with a live height transition on it is exactly
+// how a collapse comes to stutter. Every prop it takes is either a plain value
+// or already useCallback'd in App.
+export default React.memo(TunnelStatus);

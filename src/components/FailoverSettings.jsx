@@ -48,7 +48,7 @@ export function HealthReadout({ health }) {
 // The card that appears after an automatic switch: previous server, reason,
 // new server, outcome. Mirrors the sequence the user would otherwise have to
 // reconstruct from a notification they may have missed.
-export function FailoverStatus({ event, onDismiss }) {
+function FailoverStatusCard({ event, onDismiss }) {
   if (!event) return null;
   const failed = event.phase === 'failed' || event.ok === false;
   const switching = event.phase === 'switching';
@@ -194,3 +194,8 @@ export default function FailoverSettings({ settings, health, failover, onUpdate 
     </>
   );
 }
+
+// Stays on screen for 20s after a switch, spanning a lot of unrelated App
+// renders (every ping that lands, every keystroke in the sidebar search). The
+// event it renders is a frozen snapshot, so none of them concern it.
+export const FailoverStatus = React.memo(FailoverStatusCard);

@@ -13,6 +13,8 @@ import UpdateCard from './components/UpdateCard.jsx';
 import Icon from './components/Icon.jsx';
 import { loadSession, saveSession, clearSession } from './utils/sessionState.js';
 import { pingMs, toEntry } from './utils/ping.js';
+import { createRafBatch } from './utils/rafBatch.js';
+import { resetTelemetry } from './telemetryStore.js';
 
 const PING_CONCURRENCY = 12;
 
@@ -43,6 +45,14 @@ function TitleBar({ maximized, onMinimize, onToggleMaximize, onClose }) {
   );
 }
 
+// Hoisted out of the component so they are the same function on every render.
+// They close over nothing, and passing fresh arrows instead would defeat the
+// React.memo on the cards that receive them.
+const downloadAndInstall = () => window.soul.downloadAndInstall();
+const installUpdate = () => window.soul.installUpdate();
+const cancelUpdateDownload = () => window.soul.cancelUpdateDownload?.();
+const cancelAutoInstall = () => window.soul.cancelAutoInstall?.();
+
 async function mapWithConcurrency(items, limit, worker) {
   const results = new Array(items.length);
   let next = 0;
@@ -63,8 +73,10 @@ export default function App() {
   const [connectionMode, setConnectionMode] = useState('proxy');
   const [connectionState, setConnectionState] = useState('disconnected');
   const [connectedAt, setConnectedAt] = useState(null);
-  const [latencyMs, setLatencyMs] = useState(null);
-  const [traffic, setTraffic] = useState(null);
+  // `latencyMs` and `traffic` are deliberately NOT here -- see telemetryStore.js.
+  // They arrive on a timer for the whole life of a connection, and holding them
+  // in App state meant re-rendering the entire app once a second for two numbers
+  // in the footer.
   const [settings, setSettings] = useState(null);
   const [appInfo, setAppInfo] = useState(null);
   // One snapshot of the whole update protocol, pushed by the main process on
@@ -86,9 +98,22 @@ export default function App() {
   // The version the sidebar card was dismissed for. Kept per-version so a
   // later release re-opens the card instead of inheriting an old "not now".
   const [updateDismissed, setUpdateDismissed] = useState(null);
-  const [pings, setPings] = useState({});
+  // ---- Ping results, published one frame at a time ----
+  //
+  // A sweep runs PING_CONCURRENCY measurements at once and each one wants to
+  // write twice (a "measuring" mark, then the reading). Applied individually
+  // that is up to a thousand renders over a few seconds, each one rebuilding
+  // the whole sidebar -- during the exact stretch the user is watching a
+  // spinner. So the truth lives in a ref, written synchronously, and is
+  // published to state at most once per animation frame. Nothing is dropped;
+  // only the renders between frames are.
+  const pingsRef = useRef({});
+  const [pings, setPings] = useState(pingsRef.current);
   // The live batch measurement, or null. See handlePingAll.
+  const sweepStateRef = useRef(null);
   const [pingSweep, setPingSweep] = useState(null);
+  // The cancellation token of the sweep in flight -- separate from the readout
+  // above, because the stop button has to reach it without a re-render.
   const pingSweepRef = useRef(null);
   const [showAdd, setShowAdd] = useState(false);
   // Seeded eagerly (before `settings` loads) from whatever was last saved --
@@ -268,8 +293,10 @@ export default function App() {
         // pending has now been applied.
         setRoutingNeedsReconnect(false);
       } else {
-        setLatencyMs(null);
-        setTraffic(null);
+        // The readings belong to a tunnel that no longer exists. Leaving them
+        // on screen is how a footer comes to report a live speed for a session
+        // that has ended.
+        resetTelemetry();
         setHealth(null);
         refresh(); // picks up the just-persisted lifetime usage total
       }
@@ -297,8 +324,6 @@ export default function App() {
         window.soul.getHealth?.().then((h) => h && setFailover(h.failover)).catch(() => {});
       }
     });
-    const offLatency = window.soul.onLatencyUpdate(({ ms }) => setLatencyMs(ms));
-    const offTraffic = window.soul.onTrafficUpdate((data) => setTraffic(data));
     const offProfiles = window.soul.onProfilesChanged(() => refresh());
     const offOpenSettings = window.soul.onOpenSettings(() => setTab('settings'));
     // Seed from the current state so a window opened mid-download shows the
@@ -316,7 +341,7 @@ export default function App() {
       }
     });
     return () => {
-      offState(); offLatency(); offTraffic(); offProfiles(); offOpenSettings(); offUpdater();
+      offState(); offProfiles(); offOpenSettings(); offUpdater();
       if (offShield) offShield();
       if (offSoul) offSoul();
       if (offRouting) offRouting();
@@ -332,6 +357,28 @@ export default function App() {
     const t = setTimeout(() => setFailoverEvent(null), 20000);
     return () => clearTimeout(t);
   }, [failoverEvent]);
+
+  // ---- The motion preference ----
+  //
+  // Two independent triggers -- Windows' own "show animations" setting and the
+  // app's own toggle -- and one outcome, so the OR is computed here and put on
+  // <html> as a class. CSS cannot set a class from a media query, and the
+  // alternative (a `prefers-reduced-motion` block plus a duplicate class block)
+  // means keeping forty rules in sync by hand. Applied to the document root
+  // rather than threaded through props because the rules that read it are
+  // spread across every screen in the app.
+  useEffect(() => {
+    const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
+    const apply = () => {
+      document.documentElement.classList.toggle(
+        'reduce-motion',
+        settings?.reduceMotion === true || mq.matches
+      );
+    };
+    apply();
+    mq.addEventListener('change', apply);
+    return () => mq.removeEventListener('change', apply);
+  }, [settings?.reduceMotion]);
 
   // "Restore Previous Session": persist the active tab whenever it changes,
   // but only while the setting is on -- and wipe any stored session the
@@ -550,33 +597,48 @@ export default function App() {
     showToast('کانفیگ به‌روزرسانی شد');
   }, [showToast]);
 
+  // The one place ping state reaches React. Everything above it writes the ref
+  // synchronously and asks for a frame; this hands both readouts to React
+  // together, so a sweep costs one render per frame instead of two per server.
+  const publishPings = useCallback(() => {
+    setPings({ ...pingsRef.current });
+    setPingSweep(sweepStateRef.current ? { ...sweepStateRef.current } : null);
+  }, []);
+  const pingFrame = useMemo(() => createRafBatch(publishPings), [publishPings]);
+  useEffect(() => () => pingFrame.cancel(), [pingFrame]);
+
+  // `undefined` removes the row's reading rather than storing an empty one --
+  // that is what restores a cancelled measurement to "never measured".
+  const writePing = useCallback((id, entry) => {
+    if (entry === undefined) delete pingsRef.current[id];
+    else pingsRef.current[id] = entry;
+    pingFrame.schedule();
+  }, [pingFrame]);
+
   // Keeps the previous reading visible while a new one is in flight, so a
   // re-ping doesn't blank the row out and shift the layout under the cursor.
   const handlePing = useCallback(async (id, token) => {
     // `method` rides along so the "measured through the tunnel" marker doesn't
     // blink off and back on during a re-measure of the connected server.
-    let previous;
-    setPings((p) => {
-      previous = p[id];
-      return { ...p, [id]: { status: 'measuring', prev: pingMs(p[id]), method: p[id]?.method } };
-    });
+    const previous = pingsRef.current[id];
+    writePing(id, { status: 'measuring', prev: pingMs(previous), method: previous?.method });
     try {
       const result = await window.soul.pingTest(id, token);
       // Abandoned by a stop button. The server was not measured and did not
       // fail -- marking the row red would be inventing a result, so it goes
       // back to whatever it showed before.
       if (result && result.cancelled) {
-        setPings((p) => ({ ...p, [id]: previous }));
+        writePing(id, previous);
         return null;
       }
       const entry = toEntry(result);
-      setPings((p) => ({ ...p, [id]: entry }));
+      writePing(id, entry);
       return pingMs(entry) ?? -1;
     } catch (err) {
-      setPings((p) => ({ ...p, [id]: { status: 'fail', message: err.message, at: Date.now() } }));
+      writePing(id, { status: 'fail', message: err.message, at: Date.now() });
       return -1;
     }
-  }, []);
+  }, [writePing]);
 
   // A sweep is a whole batch of measurements, and the user watching it wants
   // three things the old version never told them: how far along it is, how it
@@ -586,9 +648,10 @@ export default function App() {
     if (pingSweepRef.current || !ids.length) return;
     const token = { cancelled: false, id: `sweep-${Date.now()}` };
     pingSweepRef.current = token;
-    setPingSweep({
+    sweepStateRef.current = {
       total: ids.length, done: 0, ok: 0, best: null, running: true, cancelled: false,
-    });
+    };
+    pingFrame.schedule();
     try {
       await mapWithConcurrency(ids, PING_CONCURRENCY, async (id) => {
         // Cancelling stops the queue; measurements already in flight are left
@@ -599,18 +662,24 @@ export default function App() {
         // null means it was abandoned mid-measurement: it counts towards
         // neither the measured tally nor the failures.
         if (ms == null) return;
-        setPingSweep((s) => (s ? {
-          ...s,
-          done: s.done + 1,
-          ok: s.ok + (ms >= 0 ? 1 : 0),
-          best: ms >= 0 && (s.best == null || ms < s.best) ? ms : s.best,
-        } : s));
+        const s = sweepStateRef.current;
+        if (!s) return; // dismissed mid-sweep
+        s.done += 1;
+        if (ms >= 0) {
+          s.ok += 1;
+          if (s.best == null || ms < s.best) s.best = ms;
+        }
+        pingFrame.schedule();
       });
     } finally {
       pingSweepRef.current = null;
-      setPingSweep((s) => (s ? { ...s, running: false, cancelled: token.cancelled } : s));
+      if (sweepStateRef.current) {
+        sweepStateRef.current.running = false;
+        sweepStateRef.current.cancelled = token.cancelled;
+      }
+      pingFrame.schedule();
     }
-  }, [handlePing]);
+  }, [handlePing, pingFrame]);
 
   // Stops the queue AND abandons the dozen measurements already running, so
   // "stopping" takes about as long as it says rather than quietly finishing the
@@ -619,11 +688,15 @@ export default function App() {
     const token = pingSweepRef.current;
     if (!token) return;
     token.cancelled = true;
-    setPingSweep((s) => (s ? { ...s, cancelled: true } : s));
+    if (sweepStateRef.current) sweepStateRef.current.cancelled = true;
+    pingFrame.schedule();
     window.soul.pingCancel?.(token.id).catch(() => {});
-  }, []);
+  }, [pingFrame]);
 
-  const handleDismissPingSweep = useCallback(() => setPingSweep(null), []);
+  const handleDismissPingSweep = useCallback(() => {
+    sweepStateRef.current = null;
+    pingFrame.schedule();
+  }, [pingFrame]);
 
   // Connect regardless of current state (used by the finder's result cards).
   const handleConnectTo = useCallback(async (id) => {
@@ -817,6 +890,12 @@ export default function App() {
 
   const handleOpenProxyFolder = useCallback(() => window.soul.openProxyFolder(), []);
 
+  const handleDismissUpdate = useCallback(() => {
+    setUpdateDismissed(updaterStatus?.version || null);
+  }, [updaterStatus?.version]);
+
+  const handleDismissFailover = useCallback(() => setFailoverEvent(null), []);
+
   const handleEmergencyDisableKillSwitch = useCallback(async () => {
     try {
       const updated = await window.soul.updateSettings({ killSwitchEnabled: false });
@@ -967,11 +1046,11 @@ export default function App() {
           {updateOffered && (
             <UpdateCard
               update={updaterStatus}
-              onDownload={() => window.soul.downloadAndInstall()}
-              onInstall={() => window.soul.installUpdate()}
-              onCancelDownload={() => window.soul.cancelUpdateDownload?.()}
-              onCancelAuto={() => window.soul.cancelAutoInstall?.()}
-              onDismiss={() => setUpdateDismissed(updaterStatus?.version || null)}
+              onDownload={downloadAndInstall}
+              onInstall={installUpdate}
+              onCancelDownload={cancelUpdateDownload}
+              onCancelAuto={cancelAutoInstall}
+              onDismiss={handleDismissUpdate}
             />
           )}
 
@@ -1030,7 +1109,6 @@ export default function App() {
                   the idle screen stays exactly as it was. */}
               <TunnelStatus
                 connectionState={connectionState}
-                latencyMs={latencyMs}
                 activeProfile={activeProfile}
                 systemProxy={systemProxy}
                 onToast={showToast}
@@ -1105,7 +1183,7 @@ export default function App() {
           )}
 
           {failoverEvent && (
-            <FailoverStatus event={failoverEvent} onDismiss={() => setFailoverEvent(null)} />
+            <FailoverStatus event={failoverEvent} onDismiss={handleDismissFailover} />
           )}
 
           {killSwitchBlocking && (
@@ -1124,9 +1202,7 @@ export default function App() {
             connectionState={heroPhase}
             activeProfile={activeProfile}
             connectedAt={connectedAt}
-            latencyMs={latencyMs}
             selectedPing={activeProfileId ? pingMs(pings[activeProfileId]) : undefined}
-            traffic={traffic}
             killSwitchBlocking={killSwitchBlocking}
             notice={toast}
           />

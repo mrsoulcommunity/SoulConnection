@@ -32,6 +32,7 @@ const DEFAULT_SETTINGS = {
   autoReconnect: true,
   killSwitchEnabled: false,
   subAutoUpdateInterval: 0,
+  reduceMotion: false,
   autoUpdateMode: 'auto',
   shieldMode: 'auto',
   xrayLogLevel: 'warning',

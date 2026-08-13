@@ -48,7 +48,7 @@ function ResultRow({ r, winner }) {
         {labelOf(r.key)}
       </span>
       <span className="sh-row-bar" aria-hidden="true">
-        <i style={{ width: `${passed}%` }} />
+        <i style={{ transform: `scaleX(${passed / 100})` }} />
       </span>
       <span className="sh-row-num mono">
         {r.ok ? `${r.latency ?? '—'}ms` : 'رد شد'}
@@ -116,7 +116,7 @@ export default function ShieldPanel({ shield, mode, progress, onTune, onCancel, 
           <div className="sh-track" role="progressbar" aria-valuemin={0} aria-valuemax={100}>
             <div
               className="sh-fill"
-              style={{ width: `${Math.round((((progress?.index ?? 0) + 1) / (progress?.total || 6)) * 100)}%` }}
+              style={{ transform: `scaleX(${((progress?.index ?? 0) + 1) / (progress?.total || 6)})` }}
             />
           </div>
         )}

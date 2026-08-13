@@ -60,6 +60,15 @@ const DEFAULT_SETTINGS = {
   killSwitchEnabled: false,
   subAutoUpdateInterval: 0, // ms; 0 = off
 
+  // ---- Appearance ----
+  // Turns off the ambient, always-running motion (the stage auroras, the ring's
+  // breathing halo, the shimmer and skeleton loops) and shortens the rest to a
+  // near-instant crossfade. Purely a renderer concern -- main only persists it
+  // -- but it belongs here because it has to survive a restart like every other
+  // preference. Windows' own "show animations" setting is honoured separately
+  // and independently, through prefers-reduced-motion in the stylesheet.
+  reduceMotion: false,
+
   // ---- Notifications ----
   // `notifications` is the master switch; the rest silence one category each,
   // so "tell me when a server switches under me, but stop announcing every
@@ -1208,7 +1217,7 @@ ipcMain.handle('settings:get', () => getSettings());
 const LOG_LEVELS = new Set(['none', 'error', 'warning', 'info', 'debug']);
 const BOOLEAN_SETTINGS = new Set([
   'launchOnStartup', 'runLocalProxyOnStartup', 'startMinimized', 'restorePreviousSession',
-  'minimizeToTray', 'autoReconnect', 'killSwitchEnabled',
+  'minimizeToTray', 'autoReconnect', 'killSwitchEnabled', 'reduceMotion',
   'lanDirect', 'autoSelectBestServer', 'failoverEnabled', 'backupMonitoring',
   'notifications', 'notifyConnection', 'notifyFailover', 'notifyUpdates',
 ]);

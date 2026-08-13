@@ -204,6 +204,18 @@ export default function SettingsView({
             )}
           </Section>
 
+          <Section title="ظاهر و حرکت" icon="sliders" description="جلوه‌های حرکتی رابط کاربری">
+            <Toggle
+              label="کاهش جلوه‌های حرکتی"
+              hint="جلوه‌های محیطی (هاله‌ی دور دکمه، نور پس‌زمینه و درخشش‌های تکرارشونده) خاموش می‌شوند و بقیه‌ی انیمیشن‌ها خیلی کوتاه‌تر اجرا می‌شوند — برای سیستم‌های ضعیف‌تر"
+              checked={settings.reduceMotion === true}
+              onChange={(v) => onUpdate({ reduceMotion: v })}
+            />
+            <p className="setting-hint settings-note">
+              اگر در خود ویندوز «نمایش انیمیشن‌ها» را خاموش کرده باشی، برنامه بدون نیاز به این کلید هم آن را رعایت می‌کند.
+            </p>
+          </Section>
+
           <Section title="ساب‌اسکریپشن" icon="refresh" description="به‌روزرسانی خودکار">
             <SelectField
               label="به‌روزرسانی خودکار ساب‌اسکریپشن‌ها"
