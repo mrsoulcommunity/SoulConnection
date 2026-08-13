@@ -58,7 +58,7 @@ executable and leaves nothing on the host machine — delete the folder and it's
 | **Connection modes** | **System Proxy** writes the Windows proxy settings for you; **Tunnel (TUN)** routes the whole device through Wintun and needs admin rights |
 | **Local proxy** | SOCKS and HTTP listeners on `127.0.0.1` with optional username/password. Ports are configurable and automatically bumped to the next free one when taken |
 | **Kill switch** | Windows Firewall rules that block all outbound traffic the moment the tunnel drops, so nothing leaks around it |
-| **Auto-reconnect** | Detects an unexpected drop and retries with backoff, up to five attempts |
+| **Auto-reconnect** | Detects an unexpected drop and retries with a growing backoff. How many attempts and how long a step are yours to set, and both are read live — a change applies to the next drop, not after a restart. A core killed from outside the app counts as a drop and recovers the same way |
 
 ### Adaptive Shield — anti-DPI that measures instead of guessing
 
@@ -111,6 +111,13 @@ into the Xray config *and* evaluated per connection by the dispatcher, so both l
   and moves you when it degrades. Three temperaments (`conservative`, `balanced`, `fast`) and four
   independent brakes — consecutive bad samples, a real quality margin, a cooldown, and a ban on
   returning to the server it just left — so it never oscillates between two servers.
+- **Measuring a whole list** — ping every server in the sidebar and watch it happen: the toolbar
+  button becomes a ring that fills as results land, with a live count and a stop square in the
+  middle. Stopping actually stops — a dozen measurements run at once, and the abort is checked
+  between samples rather than left for a dozen timeouts to run out. A row abandoned that way
+  reverts to what it showed before, because it was not measured and it did not fail; painting it
+  red would be inventing a result. When the sweep ends, a strip reports how many answered, the best
+  latency, and how many did not.
 
 ### Managing configs
 
@@ -132,42 +139,161 @@ into the Xray config *and* evaluated per connection by the dispatcher, so both l
   `Updates` folder beside the app, so declining the automatic install leaves a ready-to-run setup
   file rather than nothing. Policy is yours: `auto`, `download only`, or `notify`.
 
+### Settings you can find
+
+Eighteen cards over five screens is not something you scroll through looking for one switch, so
+Settings has a search that filters whole cards by any text they render — title, description,
+labels, hints, and the values inside their fields, which means typing a port number finds the card
+holding it. Arabic and Persian spellings of the same letter fold together, as do Persian and Latin
+digits, so «كانفيگ» finds «کانفیگ» and «۱۰۸۰۸» finds «10808». Passwords are deliberately left out
+of the index: a secret must not become discoverable by typing it into a search box.
+
+- **Notifications** — a master switch plus one per category (connect and disconnect, automatic
+  server switches, updates). Failures you have to act on are uncategorised and follow the master
+  switch alone, so silencing "tell me when I connect" cannot also silence "the Kill Switch could
+  not be applied".
+- **Tunnel DNS** — the resolvers tunnel mode hands to Windows. One setting feeds both halves, the
+  adapter and Xray's own DoH resolver, so the two cannot disagree. IPv4 only, validated in the
+  field and again in the main process, because Xray rejects a whole config over one bad entry.
+- **Reduce motion** — turns off the ambient animation and shortens the rest to a near-instant
+  crossfade. Windows' own preference is honoured separately and independently.
+- **Reset to defaults** — settings only. Servers, subscriptions, routing rules and usage totals are
+  data, not preferences, and losing them to a button labelled "reset settings" would be
+  indefensible.
+
+### Built to hold the frame
+
+A VPN client sits on screen while it works, so the numbers in it move continuously — and that is
+exactly the code most likely to spend the frame budget on nothing.
+
+- **Telemetry lives outside React.** Traffic and latency used to be App state, so two numbers in
+  the footer re-rendered the entire app once a second, forever, while connected. They are now in a
+  store the footer and the tunnel panel subscribe to directly. Measured over ten connected seconds:
+  31 dropped frames out of 566 became 1 out of 600, and the 95th-percentile frame went from 33.3 ms
+  — every other frame missed — to 16.8 ms.
+- **A ping sweep publishes one frame at a time.** Twelve concurrent measurements each used to write
+  twice, and each write rebuilt the sidebar. A 400-server sweep went from 10 dropped frames with a
+  116.7 ms worst case to none, worst case 16.8 ms.
+- **Only cheap properties animate.** Progress bars, the connect button's glow and the tunnel
+  panel's collapse were animating `width`, a 152px `box-shadow` and a `max-height` — all of which
+  re-run layout or paint every frame. They are transforms, an opacity crossfade and a grid row now.
+- **One motion vocabulary.** Four durations and three curves on `:root`, so two panels that open
+  the same way open at the same speed.
+
 <br>
 
-## How it works
+## Architecture
 
-```text
-┌──────────────────────────────────────────────────────────────────────────┐
-│  Renderer — React 18                                        sandboxed    │
-│  ServerList · ConnectHero · Finder · Shield · Routing · Settings         │
-└────────────────────────────────┬─────────────────────────────────────────┘
-                                 │  contextBridge (electron/preload.cjs)
-                                 │  nodeIntegration off, no remote module
-┌────────────────────────────────┴─────────────────────────────────────────┐
-│  Main process — electron/main.cjs                                        │
-│                                                                          │
-│    store.cjs        xrayConfig.cjs    routing/        shield/            │
-│    atomic JSON      config builder    rule matcher    anti-DPI tuner     │
-│                                                                          │
-│    health/          soulPool.cjs      update/         killSwitch.cjs     │
-│    failover         curated pool      SHA-512 OTA     firewall rules     │
-└────────────────────────────────┬─────────────────────────────────────────┘
-                                 │  spawn + gRPC StatsService
-┌────────────────────────────────┴─────────────────────────────────────────┐
-│  xray.exe          SOCKS 127.0.0.1:xxxxx   ·   HTTP 127.0.0.1:xxxxx      │
-└────────────────────────────────┬─────────────────────────────────────────┘
-                     ┌───────────┴────────────┐
-               System Proxy               Tunnel (TUN)
-               Windows registry           wintun.dll
-```
+Two boundaries decide almost everything about how this app is put together. The first runs between
+the renderer and the main process: the UI draws, and the main process owns every privileged thing —
+the Xray process, the registry, the routing table, the firewall. They meet at exactly one file. The
+second runs inside the main process, between *being an app* and *being connected*.
+
+<img src="docs/assets/architecture.svg" alt="Architecture: a sandboxed React renderer talks to the Electron main process through one contextBridge preload; main.cjs builds a single VpnCore, which coordinates the connection machine, the live session and the tunnel; the tunnel spawns xray.exe, whose local listeners are exposed either through the Windows system proxy or a Wintun TUN adapter." width="100%">
 
 The renderer never touches Node. It talks to the main process only through the `contextBridge`
-preload; `nodeIntegration` is off and the renderer is sandboxed.
+preload — `nodeIntegration` is off, the renderer is sandboxed, and every channel is a
+`domain:verb` invoke or a pushed state update. Adding an endpoint means editing exactly three
+files, and one of them is the browser mock the UI is developed against.
 
-Your data is stored as a single JSON file, written crash-safely — a temp file is fsynced, the
-current file is snapshotted to `.bak`, then an atomic rename swaps it in. A power loss leaves you
-with either the old file or the new one, never half of each. An unreadable file falls back to the
-backup, and if that fails too it is quarantined rather than overwritten.
+### Connecting is not one action
+
+It is a process, a routing dispatcher, a network adapter with routes, the Windows proxy
+configuration, a firewall block, three measurement loops and a failover engine — and they all have
+to agree with each other. That coordination used to be ordering rules spread across a 2,400-line
+`main.cjs`, where every subsystem re-derived whether it should be running by reading a handful of
+module-level variables. Two of those were written from *outside* the serialization lock, which is
+how a disconnect issued during a server-selection sweep could be quietly overwritten by the connect
+the sweep went on to perform.
+
+It lives in `electron/vpn/` now, and three ideas carry the whole design.
+
+**One session.** A frozen value describing the live tunnel, with an identity. "Is this still the
+tunnel I was looking at?" is `a.id === b.id`, everywhere. Every subsystem *follows* the session, so
+re-broadcasting it changes nothing.
+
+**One state machine.** Legal transitions only; anything else is refused rather than applied, so a
+crash landing at the same moment as a user disconnect cannot rewind the machine into a state the
+caller has already left behind. An `epoch` counts attempts, so a result that arrives late is
+recognisably stale and can be dropped instead of acted on.
+
+```mermaid
+stateDiagram-v2
+    direction LR
+    [*] --> disconnected
+    disconnected --> connecting: connect, epoch++
+    connecting --> connected: tunnel is up
+    connecting --> disconnected: attempt failed, epoch++
+    connecting --> disconnecting: cancelled
+    connected --> connecting: switch server, epoch++
+    connected --> disconnecting: user disconnect
+    connected --> disconnected: dropped, epoch++
+    disconnecting --> disconnected: torn down, epoch++
+```
+
+Every arrow that is not drawn is refused. `connecting → connected` is deliberately the one arrow
+that does *not* bump the epoch: those two states are the same attempt, so work started during the
+handshake stays valid once it succeeds. And `connected → connecting` exists because switching
+servers really does begin a new attempt while the old tunnel is still carrying traffic — modelling
+that honestly is what lets a failed switch return you to `connected` over the tunnel you still
+have, instead of reporting "disconnected" over a live connection.
+
+**One activity.** The single cancellable span of long work — a selection sweep, a reconnect
+countdown. At most one exists, and starting another cancels the first. This is what makes "the user
+pressed disconnect" reliably stop work that has not reached the connection lock yet; an epoch alone
+cannot do it, because a pending reconnect sits in `disconnected` with nothing to bump.
+
+### Up in order, back out in reverse
+
+```mermaid
+flowchart TB
+    subgraph UP["bring up — in this order"]
+        direction LR
+        A["ports<br/>allocated in one pass"] --> B["xray.exe<br/>config from the routing plan"] --> C["dispatcher<br/>only if a rule names an app"] --> D["TUN adapter<br/>address, routes, DNS"] --> E["session<br/>frozen, with an id"] --> F["system proxy<br/>kill switch"]
+    end
+    subgraph DOWN["and back out — reverse, best effort"]
+        direction LR
+        F2["withdraw the proxy"] --> C2["stop the dispatcher"] --> D2["remove the routes"] --> B2["stop xray"]
+    end
+    UP -.->|any step throws| DOWN
+```
+
+The order is not stylistic. Routes have to come out before the adapter disappears, or the machine
+is left routing into an adapter that no longer exists — no internet at all, tunnel or otherwise.
+The dispatcher has to stop before Xray, or it keeps accepting connections and forwarding them into
+ports nothing is listening on. The system proxy is withdrawn *before* the listener dies, because
+Windows pointed at a port that just stopped accepting is the same outage by a different route.
+
+If any step of the bring-up throws, everything that went in comes back out before the error reaches
+the caller. A surviving Xray is not harmless: `start()` refuses while one is alive, so every later
+connect would fail with "Xray is already running" until the app was restarted.
+
+### Nothing in the core builds anything
+
+`core.cjs` receives every collaborator through its constructor — the process, the adapter, the
+registry writer, the firewall, the clock. `index.cjs` is the only composition root, the only file
+that knows which implementation is the real one, and nothing outside `vpn/` constructs anything
+from `vpn/`. That is what makes ordering, cancellation and rollback testable with no Windows, no
+Xray and no network: `npm test` runs **98 tests** on Node's own runner, with no dependencies, and
+asserts on the order the calls actually happened in — which is where the historical bugs lived.
+
+### Where things live
+
+| Path | What it owns |
+|---|---|
+| `electron/main.cjs` | the Electron shell — window, tray, IPC, profiles, subscriptions, settings |
+| `electron/preload.cjs` | the entire `contextBridge` surface (`window.soul`). Nothing else is exposed |
+| `electron/vpn/` | the connection lifecycle — machine, session, tunnel, ports, endpoints, telemetry, failover |
+| `electron/lib/` | the leaf mechanics, one concern per file — the store, the parsers, the config builder, the Windows edges |
+| `src/` | the renderer. `App.jsx` holds the state; components are presentational and take callbacks |
+| `test/` | `node:test` suites over the coordination layer, built from hand-written fakes |
+
+### Data that survives a crash
+
+Profiles, subscriptions and settings are a single JSON file, written crash-safely — a temp file is
+fsynced, the current file is snapshotted to `.bak`, then an atomic rename swaps it in. A power loss
+leaves you with either the old file or the new one, never half of each. An unreadable file falls
+back to the backup, and if that fails too it is quarantined rather than overwritten.
 
 <br>
 
@@ -181,6 +307,7 @@ backup, and if that fails too it is quarantined rather than overwritten.
 | **Core engine** | Xray-core (bundled `xray.exe`, per architecture) |
 | **Stats** | gRPC (`@grpc/grpc-js`) against Xray's StatsService |
 | **Tunnel driver** | Wintun (`wintun.dll`) |
+| **Tests** | `node:test` — 98 tests, no dependencies, no network, no Windows |
 | **Packaging** | electron-builder (NSIS) |
 
 <br>
@@ -212,6 +339,7 @@ bin/
 
 | Command | Description |
 |---------|-------------|
+| `npm test` | Run the 98 `node:test` suites. Needs neither Windows nor `bin/` |
 | `npm run dev` | Build the UI bundle and launch Electron |
 | `npm run start` | Same as `dev` |
 | `npm run build:ui` | Build only the Vite renderer bundle into `dist/` |
@@ -226,25 +354,38 @@ bin/
 ```text
 SoulConnection/
 ├── electron/
-│   ├── main.cjs              # Main process: IPC, tray, connection lifecycle
-│   ├── preload.cjs           # contextBridge API exposed to the renderer
+│   ├── main.cjs              # The Electron shell: window, tray, IPC, profiles, subscriptions
+│   ├── preload.cjs           # The entire contextBridge surface (window.soul)
+│   ├── vpn/                  # THE VPN CORE — one lifecycle, every collaborator injected
+│   │   ├── core.cjs          #   connect, disconnect, drops, reconnect, failover
+│   │   ├── index.cjs         #   the composition root: the only file that builds anything
+│   │   ├── machine.cjs       #   states, epochs, activities, the exclusive lock
+│   │   ├── session.cjs       #   one live tunnel, frozen, with an identity
+│   │   ├── tunnel.cjs        #   xray + dispatcher + routes, in order, with rollback
+│   │   ├── ports.cjs         #   the whole port layout, allocated in one pass
+│   │   ├── endpoints.cjs     #   which address and port to dial, for which purpose
+│   │   └── …                 #   routingPlan, telemetry, tunnelStatus, killSwitchGuard, reconnect
 │   └── lib/
 │       ├── shield/           # Adaptive Shield: profiles, tuner, per-network memory
-│       ├── routing/          # Smart Routing: rules, matcher, dispatcher, compiler
-│       ├── health/           # Health monitoring, scoring, automatic failover
+│       ├── routing/          # Smart Routing: pure rules, dispatcher, Xray compiler
+│       ├── health/           # Measurement (monitor) and policy (failover), kept apart
 │       ├── update/           # Feed, resumable download, SHA-512 verify, installer
-│       ├── xrayProcess.cjs   # Xray lifecycle
-│       ├── xrayConfig.cjs    # Config builder
+│       ├── xrayProcess.cjs   # Xray's lifetime and its log stream
+│       ├── xrayConfig.cjs    # Config builder: inbounds, outbounds, TUN, DNS, shield
 │       ├── killSwitch.cjs    # Windows Firewall rules
 │       ├── systemProxy.cjs   # Windows proxy settings
 │       ├── tunNetwork.cjs    # TUN interface setup
 │       ├── soulPool.cjs      # Curated server pool
 │       └── store.cjs         # Crash-safe JSON store
 ├── src/
-│   ├── App.jsx               # Root component
-│   ├── components/           # Server list, settings, finder, shield, modals
-│   ├── finder/               # Server-test orchestration
-│   └── utils/                # Formatting, geo lookup, scoring
+│   ├── App.jsx               # Root component; owns nearly all renderer state
+│   ├── components/           # One file per screen or panel
+│   ├── finder/               # Server Finder's test-batch engine
+│   ├── telemetryStore.js     # Traffic and latency, kept outside React
+│   ├── utils/                # Pure helpers: format, geo, ping shape, score, session
+│   └── index.css             # The entire stylesheet, CSS variables on :root
+├── test/                     # node:test suites over electron/vpn
+├── docs/assets/              # Banner and architecture diagram
 ├── bin/                      # Xray core + Wintun (not tracked; see above)
 ├── scripts/build-exe.cjs     # Packaging pipeline
 ├── vite.config.js
@@ -305,8 +446,13 @@ Settings → open the logs folder. Raise `xrayLogLevel` first if you need more d
 
 1. Fork the repository.
 2. Create a feature branch — `git checkout -b feature/amazing-feature`.
-3. Commit your changes.
+3. Commit your changes, and keep `npm test` green — it needs neither Windows nor `bin/`, so there
+   is no excuse for a red suite in a pull request.
 4. Push the branch and open a Pull Request.
+
+Before you start, `CLAUDE.md` in the repository root is the map — what each directory is for, the
+conventions the code follows, and the failure modes the designs exist to prevent. `electron/vpn/README.md`
+goes deeper on the connection core.
 
 Bug reports and feature requests are welcome in [Issues](https://github.com/mrsoulcommunity/SoulConnection/issues).
 

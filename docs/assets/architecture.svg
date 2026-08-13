@@ -1,0 +1,199 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1040 820" width="1040" height="820" role="img" aria-label="Soul Connection architecture: a sandboxed React renderer talks to the Electron main process through one contextBridge preload; main.cjs builds a single VpnCore, which coordinates the connection machine, the live session and the tunnel; the tunnel spawns xray.exe, whose local listeners are exposed either through the Windows system proxy or a Wintun TUN adapter.">
+  <defs>
+    <linearGradient id="ground" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#0a0d13"/>
+      <stop offset="55%" stop-color="#0e1219"/>
+      <stop offset="100%" stop-color="#0a0d13"/>
+    </linearGradient>
+    <marker id="ar-teal" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+      <path d="M0 0 L10 5 L0 10 Z" fill="#35e0c0"/>
+    </marker>
+    <marker id="ar-dim" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+      <path d="M0 0 L10 5 L0 10 Z" fill="#7d8699"/>
+    </marker>
+  </defs>
+
+  <rect x="0" y="0" width="1040" height="820" rx="20" fill="url(#ground)"/>
+  <rect x="0.75" y="0.75" width="1038.5" height="818.5" rx="19.25" fill="none" stroke="#1e2434" stroke-width="1.5"/>
+
+  <g font-family="Segoe UI, Inter, Helvetica Neue, Arial, sans-serif">
+
+    <!-- ============ renderer ============ -->
+    <rect x="32" y="32" width="716" height="92" rx="14" fill="#0e1219" stroke="#1e2434" stroke-width="1.5"/>
+    <text x="52" y="60" font-size="15.5" font-weight="600" fill="#e9ecf4">Renderer — React 18</text>
+    <text x="728" y="60" font-size="11.5" text-anchor="end" fill="#7d8699">sandboxed · nodeIntegration off · CSP</text>
+    <g fill="#131926" stroke="#232b3d" stroke-width="1">
+      <rect x="52" y="78" width="106" height="30" rx="8"/>
+      <rect x="166" y="78" width="106" height="30" rx="8"/>
+      <rect x="280" y="78" width="106" height="30" rx="8"/>
+      <rect x="394" y="78" width="106" height="30" rx="8"/>
+      <rect x="508" y="78" width="106" height="30" rx="8"/>
+      <rect x="622" y="78" width="106" height="30" rx="8"/>
+    </g>
+    <g font-size="11" fill="#98a0b4" text-anchor="middle">
+      <text x="105" y="97">ConnectHero</text>
+      <text x="219" y="97">ServerList</text>
+      <text x="333" y="97">ServerFinder</text>
+      <text x="447" y="97">ShieldPanel</text>
+      <text x="561" y="97">RoutingRules</text>
+      <text x="675" y="97">SettingsView</text>
+    </g>
+
+    <!-- legend -->
+    <rect x="796" y="32" width="212" height="92" rx="14" fill="#0e1219" stroke="#1e2434" stroke-width="1.5"/>
+    <text x="814" y="54" font-size="10.5" font-weight="600" letter-spacing="2" fill="#7d8699">LEGEND</text>
+    <line x1="814" y1="72" x2="846" y2="72" stroke="#35e0c0" stroke-width="1.75" marker-end="url(#ar-teal)"/>
+    <text x="860" y="76" font-size="10.5" fill="#98a0b4">traffic and control</text>
+    <line x1="814" y1="98" x2="846" y2="98" stroke="#5b6377" stroke-width="1.5" stroke-dasharray="4 4" marker-end="url(#ar-dim)"/>
+    <text x="860" y="102" font-size="10.5" fill="#98a0b4">constructed, injected</text>
+
+    <!-- ============ the one door ============ -->
+    <line x1="32" y1="165" x2="320" y2="165" stroke="#1e2434" stroke-width="1.5" stroke-dasharray="5 5"/>
+    <line x1="520" y1="165" x2="748" y2="165" stroke="#1e2434" stroke-width="1.5" stroke-dasharray="5 5"/>
+    <rect x="320" y="152" width="200" height="26" rx="13" fill="#0e1219" stroke="#1e2434" stroke-width="1.5"/>
+    <text x="420" y="169" font-size="11" text-anchor="middle" fill="#98a0b4">preload.cjs · contextBridge</text>
+
+    <line x1="180" y1="130" x2="180" y2="196" stroke="#35e0c0" stroke-width="1.75" marker-end="url(#ar-teal)"/>
+    <text x="192" y="143" font-size="11" fill="#98a0b4">invoke · domain:verb</text>
+    <line x1="600" y1="196" x2="600" y2="130" stroke="#35e0c0" stroke-width="1.75" marker-end="url(#ar-teal)"/>
+    <text x="588" y="143" font-size="11" text-anchor="end" fill="#98a0b4">push · state-changed, traffic-update</text>
+
+    <!-- ============ main process shell ============ -->
+    <rect x="32" y="200" width="716" height="88" rx="14" fill="#0e1219" stroke="#1e2434" stroke-width="1.5"/>
+    <text x="52" y="228" font-size="15.5" font-weight="600" fill="#e9ecf4">electron/main.cjs — the Electron shell</text>
+    <text x="728" y="228" font-size="11.5" text-anchor="end" fill="#7d8699">everything except being connected</text>
+    <g fill="#131926" stroke="#232b3d" stroke-width="1">
+      <rect x="54" y="244" width="89" height="28" rx="8"/>
+      <rect x="151" y="244" width="89" height="28" rx="8"/>
+      <rect x="248" y="244" width="89" height="28" rx="8"/>
+      <rect x="345" y="244" width="89" height="28" rx="8"/>
+      <rect x="442" y="244" width="89" height="28" rx="8"/>
+      <rect x="539" y="244" width="89" height="28" rx="8"/>
+      <rect x="636" y="244" width="89" height="28" rx="8"/>
+    </g>
+    <g font-size="10" fill="#98a0b4" text-anchor="middle">
+      <text x="98.5" y="262">window</text>
+      <text x="195.5" y="262">tray</text>
+      <text x="292.5" y="262">IPC</text>
+      <text x="389.5" y="262">profiles</text>
+      <text x="486.5" y="262">subscriptions</text>
+      <text x="583.5" y="262">updates</text>
+      <text x="680.5" y="262">settings</text>
+    </g>
+
+    <line x1="390" y1="288" x2="390" y2="316" stroke="#35e0c0" stroke-width="1.75" marker-end="url(#ar-teal)"/>
+    <text x="402" y="306" font-size="11" fill="#98a0b4">createVpnCore() — one object, built once</text>
+
+    <!-- ============ the VPN core ============ -->
+    <rect x="32" y="320" width="716" height="210" rx="14" fill="#0b1519" stroke="#1f5d54" stroke-width="1.5"/>
+    <text x="52" y="348" font-size="15.5" font-weight="600" fill="#35e0c0">VpnCore — electron/vpn</text>
+    <text x="728" y="348" font-size="11.5" text-anchor="end" fill="#7fe4d2" opacity="0.75">coordination, and nothing else</text>
+
+    <g fill="#0e1a1e" stroke="#235f56" stroke-width="1.25">
+      <rect x="52" y="362" width="216" height="84" rx="10"/>
+      <rect x="282" y="362" width="216" height="84" rx="10"/>
+      <rect x="512" y="362" width="216" height="84" rx="10"/>
+    </g>
+    <g font-size="13" font-weight="600" fill="#e9ecf4">
+      <text x="68" y="387">machine.cjs</text>
+      <text x="298" y="387">session.cjs</text>
+      <text x="528" y="387">tunnel.cjs</text>
+    </g>
+    <g font-size="10.5" fill="#98a0b4">
+      <text x="68" y="407">state · epoch · activity</text>
+      <text x="298" y="407">one live tunnel, frozen</text>
+      <text x="528" y="407">up in order, down in reverse</text>
+    </g>
+    <g font-size="10.5" fill="#7d8699">
+      <text x="68" y="425">illegal moves are refused</text>
+      <text x="298" y="425">identity: a.id === b.id</text>
+      <text x="528" y="425">rollback on any failure</text>
+    </g>
+
+    <g fill="#101c20" stroke="#1f5d54" stroke-width="1" opacity="0.9">
+      <rect x="52" y="458" width="160" height="22" rx="7"/>
+      <rect x="224" y="458" width="160" height="22" rx="7"/>
+      <rect x="396" y="458" width="160" height="22" rx="7"/>
+      <rect x="568" y="458" width="160" height="22" rx="7"/>
+      <rect x="52" y="486" width="160" height="22" rx="7"/>
+      <rect x="224" y="486" width="160" height="22" rx="7"/>
+      <rect x="396" y="486" width="160" height="22" rx="7"/>
+      <rect x="568" y="486" width="160" height="22" rx="7"/>
+    </g>
+    <g font-size="10.5" fill="#98a0b4" text-anchor="middle">
+      <text x="132" y="473">ports.cjs</text>
+      <text x="304" y="473">endpoints.cjs</text>
+      <text x="476" y="473">routingPlan.cjs</text>
+      <text x="648" y="473">dispatcherHost.cjs</text>
+      <text x="132" y="501">telemetry.cjs</text>
+      <text x="304" y="501">tunnelStatus.cjs</text>
+      <text x="476" y="501">killSwitchGuard.cjs</text>
+      <text x="648" y="501">reconnect.cjs</text>
+    </g>
+    <text x="390" y="520" font-size="10.5" text-anchor="middle" fill="#7d8699">index.cjs is the only file that knows which implementation is the real one</text>
+
+    <!-- ============ leaf mechanics ============ -->
+    <rect x="796" y="200" width="212" height="330" rx="14" fill="#0e1219" stroke="#1e2434" stroke-width="1.5"/>
+    <text x="814" y="228" font-size="14" font-weight="600" fill="#e9ecf4">electron/lib</text>
+    <text x="814" y="246" font-size="10.5" fill="#7d8699">leaf mechanics — one concern each</text>
+    <g fill="#35e0c0" opacity="0.5">
+      <circle cx="818" cy="268" r="2"/><circle cx="818" cy="290" r="2"/><circle cx="818" cy="312" r="2"/>
+      <circle cx="818" cy="334" r="2"/><circle cx="818" cy="356" r="2"/><circle cx="818" cy="378" r="2"/>
+      <circle cx="818" cy="400" r="2"/><circle cx="818" cy="422" r="2"/><circle cx="818" cy="444" r="2"/>
+      <circle cx="818" cy="466" r="2"/><circle cx="818" cy="488" r="2"/>
+    </g>
+    <g font-size="11" fill="#98a0b4">
+      <text x="830" y="272">store.cjs — crash-safe JSON</text>
+      <text x="830" y="294">parsers.cjs — link to profile</text>
+      <text x="830" y="316">xrayConfig.cjs — the config</text>
+      <text x="830" y="338">routing/ — rules, dispatcher</text>
+      <text x="830" y="360">health/ — measure, fail over</text>
+      <text x="830" y="382">shield/ — anti-DPI tuner</text>
+      <text x="830" y="404">update/ — feed, verify, install</text>
+      <text x="830" y="426">soulPool.cjs — curated pool</text>
+      <text x="830" y="448">systemProxy.cjs — registry</text>
+      <text x="830" y="470">killSwitch.cjs — firewall</text>
+      <text x="830" y="492">tunNetwork.cjs — routes</text>
+    </g>
+    <text x="814" y="516" font-size="10" fill="#7d8699">handed to the core at index.cjs</text>
+    <line x1="792" y1="390" x2="752" y2="390" stroke="#5b6377" stroke-width="1.5" stroke-dasharray="4 4" marker-end="url(#ar-dim)"/>
+
+    <!-- ============ xray ============ -->
+    <line x1="170" y1="534" x2="170" y2="584" stroke="#35e0c0" stroke-width="1.75" marker-end="url(#ar-teal)"/>
+    <text x="182" y="556" font-size="11" fill="#98a0b4">spawn + config</text>
+    <line x1="560" y1="584" x2="560" y2="534" stroke="#35e0c0" stroke-width="1.75" marker-end="url(#ar-teal)"/>
+    <text x="548" y="556" font-size="11" text-anchor="end" fill="#98a0b4">gRPC stats, every second</text>
+
+    <rect x="32" y="588" width="716" height="84" rx="14" fill="#0e1219" stroke="#1e2434" stroke-width="1.5"/>
+    <text x="52" y="620" font-size="15.5" font-weight="600" fill="#e9ecf4">xray.exe</text>
+    <text x="52" y="640" font-size="10.5" fill="#7d8699">one process per session</text>
+    <g fill="#131926" stroke="#232b3d" stroke-width="1">
+      <rect x="268" y="604" width="140" height="30" rx="8"/>
+      <rect x="428" y="604" width="140" height="30" rx="8"/>
+      <rect x="588" y="604" width="140" height="30" rx="8"/>
+    </g>
+    <g font-size="10.5" fill="#98a0b4" text-anchor="middle">
+      <text x="338" y="623">SOCKS 10808</text>
+      <text x="498" y="623">HTTP 10809</text>
+      <text x="658" y="623">api 10810</text>
+    </g>
+    <text x="728" y="652" font-size="10.5" text-anchor="end" fill="#7d8699">preferred ports, bumped past anything already bound</text>
+
+    <!-- ============ the two exits ============ -->
+    <line x1="207" y1="676" x2="207" y2="708" stroke="#35e0c0" stroke-width="1.75" marker-end="url(#ar-teal)"/>
+    <text x="219" y="698" font-size="10.5" fill="#98a0b4">mode = proxy</text>
+    <line x1="573" y1="676" x2="573" y2="708" stroke="#35e0c0" stroke-width="1.75" marker-end="url(#ar-teal)"/>
+    <text x="561" y="698" font-size="10.5" text-anchor="end" fill="#98a0b4">mode = tun</text>
+
+    <rect x="32" y="712" width="350" height="76" rx="14" fill="#0e1219" stroke="#1e2434" stroke-width="1.5"/>
+    <text x="52" y="740" font-size="13.5" font-weight="600" fill="#e9ecf4">System Proxy</text>
+    <text x="52" y="760" font-size="10.5" fill="#98a0b4">Windows registry · per-user WinINet settings</text>
+    <text x="52" y="777" font-size="10" fill="#7d8699">withdrawn before the listener dies, restored after</text>
+
+    <rect x="398" y="712" width="350" height="76" rx="14" fill="#0e1219" stroke="#1e2434" stroke-width="1.5"/>
+    <text x="418" y="740" font-size="13.5" font-weight="600" fill="#e9ecf4">Tunnel (TUN)</text>
+    <text x="418" y="760" font-size="10.5" fill="#98a0b4">wintun.dll · address, routes, DNS</text>
+    <text x="418" y="777" font-size="10" fill="#7d8699">routes come out before the adapter does</text>
+
+  </g>
+</svg>
