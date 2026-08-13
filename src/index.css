@@ -1610,12 +1610,24 @@ button:disabled { cursor: default; }
   to { opacity: 0; transform: scale(1.5); }
 }
 
+/* Registered so the browser treats --halo as a real <color> and tweens it,
+   the way it tweens any other colour. An unregistered custom property can
+   only ever snap between values, which turned every rose/amber/teal handoff
+   below into a hard cut in the one layer that is supposed to read as the
+   room's temperature changing. */
+@property --halo {
+  syntax: '<color>';
+  inherits: false;
+  initial-value: rgba(242, 112, 138, 0.14);
+}
+
 .ring-halo {
   position: absolute;
   inset: 10px;
   border-radius: 50%;
   background: radial-gradient(circle, var(--halo, rgba(242, 112, 138, 0.14)) 0%, transparent 68%);
   animation: halo-breathe 4.5s ease-in-out infinite;
+  transition: --halo var(--dur-move) var(--ease-out);
   /* Runs for as long as the app is open, so the layer is worth keeping. The
      gradient behind it is expensive to rasterise and this way it is rasterised
      once instead of on every breath. */
@@ -1647,12 +1659,16 @@ button:disabled { cursor: default; }
 
 .ring-track { stroke: var(--border); }
 
-/* Spinner arc: only alive while a transition is in flight. */
+/* Spinner arc: only alive while a transition is in flight. Fades in and out
+   rather than popping -- with no transition at all, a connect landing cut the
+   spinning arc away on the very frame it stopped, which read as a glitch
+   instead of a resolution. */
 .ring-spin {
   stroke: var(--warn);
   stroke-dasharray: 60 493;
   opacity: 0;
   transform-origin: center;
+  transition: opacity var(--dur-ui) var(--ease-out), stroke var(--dur-ui) var(--ease-out);
 }
 .ring-wrap.connecting .ring-spin,
 .ring-wrap.preparing .ring-spin,
@@ -1755,7 +1771,10 @@ button:disabled { cursor: default; }
   border-radius: 50%;
   background: var(--idle);
   flex-shrink: 0;
-  transition: background var(--dur-move);
+  /* opacity is here so the dot settles smoothly when `blink` below stops
+     applying -- otherwise it could be caught mid-blink and snap to fully
+     opaque on the same frame the state changes. */
+  transition: background var(--dur-move) var(--ease-out), opacity var(--dur-ui) var(--ease-out);
 }
 .status-dot.connected { background: var(--signal); box-shadow: 0 0 8px var(--signal); }
 .status-dot.blocking { background: var(--danger); box-shadow: 0 0 8px var(--danger); animation: killswitch-pulse 1.4s ease-in-out infinite; }
@@ -2083,6 +2102,7 @@ button:disabled { cursor: default; }
   border-radius: 50%;
   background: var(--text-faint);
   flex-shrink: 0;
+  transition: background var(--dur-move) var(--ease-out), opacity var(--dur-ui) var(--ease-out);
 }
 .tunnel-pulse.ok { background: var(--signal); box-shadow: 0 0 8px var(--signal); }
 .tunnel-pulse.error { background: var(--danger); box-shadow: 0 0 8px var(--danger); }
