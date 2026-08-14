@@ -56,6 +56,10 @@ V2Ray / Xray client for Windows
 
 <br>
 
+**What's new in 1.2.0** · [فارسی](README.fa.md#تازه‌های-نسخهٔ-۱۲۰) · [English](README.en.md#whats-new-in-120) · [Русский](README.ru.md#что-нового-в-120)
+
+<br>
+
 [![Release](https://img.shields.io/github/v/release/mrsoulcommunity/SoulConnection?label=version&labelColor=0a0d13&color=1a8a76)](https://github.com/mrsoulcommunity/SoulConnection/releases)
 [![Downloads](https://img.shields.io/github/downloads/mrsoulcommunity/SoulConnection/total?labelColor=0a0d13&color=1a8a76)](https://github.com/mrsoulcommunity/SoulConnection/releases)
 [![License](https://img.shields.io/badge/license-MIT-1a8a76?labelColor=0a0d13)](LICENSE)

@@ -47,6 +47,102 @@ executable and leaves nothing on the host machine — delete the folder and it's
 
 <br>
 
+## What's new in 1.2.0
+
+The largest release so far. The whole connection layer was rebuilt behind one lifecycle, the
+anti-DPI layer is new, Settings became searchable, and the renderer now holds 60fps while
+connected. Every IPC channel and payload is unchanged, so existing servers, subscriptions and
+routing rules carry over untouched.
+
+### New
+
+| | |
+|---|---|
+| **Adaptive Shield** | An anti-DPI layer that *measures* instead of guessing. It tries the catalogue of treatments against your network, keeps the one that gets through, and remembers it against a hashed fingerprint of that network — so a network you have already solved connects with the right treatment straight away |
+| **Settings search** | Eighteen cards over five screens of scrolling, now filtered by any text a card renders — its title, its hints, even the values in its fields, so typing a port number finds the card holding it. Arabic and Persian spellings of the same letter are folded together, as are Persian and Latin digits: «كانفيگ» finds «کانفیگ» and «۱۰۸۰۸» finds «10808». Passwords are deliberately excluded from the index |
+| **Notification categories** | A master switch plus one per category — connect/disconnect, automatic server switches, updates. Failures you have to act on stay uncategorised and follow the master switch alone, so silencing "tell me when I connect" cannot also silence "the Kill Switch could not be applied" |
+| **Configurable auto-reconnect** | How many times to retry, and how long to back off between tries. Both are read live, so a change applies to the very next drop rather than after a restart — and both are bounded on the way in |
+| **Tunnel DNS** | The resolvers tunnel mode hands to Windows used to be hard-coded. One setting now feeds both halves — the adapter and xray's own DoH resolver — so the two cannot disagree. Validated in the field and again in the main process, because xray rejects an entire config over one bad entry |
+| **Reduce motion** | An in-app switch alongside Windows' own preference. Either one turns the animations down; previously only the system setting was consulted |
+| **Reset settings** | Restores preferences to their defaults and touches nothing else. Servers, subscriptions, routing rules and usage totals are data, not preferences |
+
+### Rebuilt
+
+**One connection lifecycle.** Everything about being connected — the xray process, Smart
+Routing's dispatcher, the tunnel adapter and its routes, the Windows proxy configuration, the
+Kill Switch, the three measurement loops, health and failover — used to be held together by
+ordering rules spread across a 2,359-line `main.cjs`. It now lives in `electron/vpn/` behind a
+single lifecycle that every subsystem *follows* rather than re-derives. Races this removed
+rather than moved:
+
+- A disconnect issued during a server-selection sweep was overwritten by the connect that
+  sweep went on to perform.
+- Disconnecting during an auto-reconnect countdown reconnected you anyway — the countdown was
+  a bare timer and nothing re-checked your intent after it elapsed.
+- Both measurement pollers were restarted by every state broadcast, including a drift tick
+  every six seconds. Restarting the traffic poller reset its baseline, so the reported speed
+  spiked to the whole session's byte count per second, several times a minute.
+- "Connect to the best server" while already connected reported *disconnected* over a live
+  tunnel whenever the sweep found nothing.
+- The four dispatcher ports were allocated independently, so a busy port could be handed to
+  two inbounds at once — and xray refused the config.
+- A cancel landing mid-handshake left the tunnel up after announcing a connection you had
+  already asked to end.
+
+**A sweep you can watch and stop.** Measuring a batch of servers used to run behind a spinner
+that said only "something is happening" — half a minute of it on a fifty-server subscription.
+The toolbar button is now the readout: a ring that fills as servers are measured, a live count
+and progress bar, and a summary when it ends. Stopping actually stops — the measurements
+already in the air are cancelled rather than waited out. A row abandoned that way reverts to
+what it showed before: it was not measured and it did not fail, so painting it red would be
+inventing a result.
+
+**Sixty frames per second.** Telemetry moved out of React state into a store the footer and
+tunnel panel subscribe to directly, so two numbers in the footer no longer re-render the entire
+app once a second forever. Ping results are published one frame at a time instead of twice per
+measurement. Six progress bars, the connect button's shadow and the tunnel panel's collapse now
+animate transforms, opacity and a grid row rather than properties that re-run layout on every
+frame. Measured over ten connected seconds: 31 dropped frames out of 566 became 1 out of 600,
+and the 95th-percentile frame went from 33.3ms to 16.8ms. A 400-server sweep went from 10
+dropped frames with a 116.7ms worst case to none, worst case 16.8ms.
+
+**One motion language.** Four durations and three curves on `:root` replace roughly 65
+hand-picked timings, so two panels that open the same way now open at the same speed.
+
+### Fixed
+
+- A tunnel killed from outside the app could not be restarted: every reconnect failed with
+  "Xray is already running" until the app itself was restarted. Liveness is now event-driven,
+  so an externally killed core recovers on its own.
+- Error toasts rendered in success teal — every failure path was missing its `'error'` flag.
+- The toast covered the whole status rail for 2.6s, blanking duration, speed, ping and server
+  name at the exact moment of connect. It now floats above the rail.
+- Two different Settings cards were both titled «پیشرفته».
+- The hero claimed "no server selected" while the sidebar showed the Soul pool or automatic
+  selection — both are real selections.
+- One latency scale replaces three: 350ms used to read amber "متوسط" in the rail and red
+  "ضعیف" in the panel directly above it, at the same instant.
+- Latin server names were ellipsized from the *start* — "Tokyo — NTT Premium" showed as
+  "…NTT Premium", losing the identifying half.
+- Six dropdowns in Settings had six different widths; disabled ones looked clickable; and
+  Chromium's own chevron was a different glyph, weight and colour from every other chevron in
+  the app. All three are fixed.
+- The mode switch's sliding pill was 15px narrower than «پروکسی سیستم» and 15px wider than
+  «تانل کامل», so the text visibly spilled out of it.
+- The Kill Switch's blocking state never reached the status rail.
+- Ctrl+F inside the sidebar's own search box opened the server finder; Ctrl+K opened it behind
+  an open modal.
+- Several Latin runs inline in RTL text were reordered by the bidi algorithm across a line
+  break — `Host/Port/احراز هویت` rendered as «I/Host/Port».
+
+### Under the hood
+
+`npm test` now runs **98 tests** on Node's built-in runner — no dependencies, no network, no
+Windows and no xray binary required. They cover the coordination layer, which is where the
+historical bugs lived: ordering, cancellation and rollback. See [Building from source](#building-from-source).
+
+<br>
+
 ## Features
 
 ### Connecting
