@@ -398,7 +398,7 @@ flowchart TB
 | `electron/preload.cjs` | کل سطح `contextBridge` (یعنی `window.soul`). هیچ چیز دیگری در دسترس نیست |
 | `electron/vpn/` | چرخهٔ عمر اتصال — ماشین، نشست، تونل، پورت‌ها، مقصدها، تله‌متری، جابه‌جایی |
 | `electron/lib/` | مکانیک‌های برگ، هر فایل یک نگرانی — انبار، تجزیه‌گرها، سازندهٔ کانفیگ، لبه‌های ویندوزی |
-| `src/` | رابط کاربری. `App.jsx` صاحب state است و کامپوننت‌ها فقط نمایش می‌دهند |
+| `src/` | رابط کاربری. `App.jsx` ریشهٔ ترکیب است؛ state در هوک‌های دامنه‌ای `src/hooks/` زندگی می‌کند و کامپوننت‌ها فقط نمایش می‌دهند |
 | `test/` | مجموعه‌آزمون‌های `node:test` روی لایهٔ هماهنگی، ساخته‌شده از فیک‌های دست‌نویس |
 
 ### داده‌ای که از کرش جان به در می‌برد
@@ -502,8 +502,10 @@ SoulConnection/
 │       ├── soulPool.cjs      # Curated server pool
 │       └── store.cjs         # Crash-safe JSON store
 ├── src/
-│   ├── App.jsx               # Root component; owns nearly all renderer state
+│   ├── App.jsx               # The renderer's composition root: wires hooks to components
+│   ├── hooks/                # Domain hooks; useMainState mirrors the main process
 │   ├── components/           # One file per screen or panel
+│   │   └── finder/           # The Server Finder UI (overlay, toolbar, cards, dashboard)
 │   ├── finder/               # Server Finder's test-batch engine
 │   ├── telemetryStore.js     # Traffic and latency, kept outside React
 │   ├── utils/                # Pure helpers: format, geo, ping shape, score, session

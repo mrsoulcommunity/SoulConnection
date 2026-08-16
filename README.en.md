@@ -381,7 +381,7 @@ asserts on the order the calls actually happened in — which is where the histo
 | `electron/preload.cjs` | the entire `contextBridge` surface (`window.soul`). Nothing else is exposed |
 | `electron/vpn/` | the connection lifecycle — machine, session, tunnel, ports, endpoints, telemetry, failover |
 | `electron/lib/` | the leaf mechanics, one concern per file — the store, the parsers, the config builder, the Windows edges |
-| `src/` | the renderer. `App.jsx` holds the state; components are presentational and take callbacks |
+| `src/` | the renderer. `App.jsx` is the composition root; domain hooks in `src/hooks/` own the state, components are presentational and take callbacks |
 | `test/` | `node:test` suites over the coordination layer, built from hand-written fakes |
 
 ### Data that survives a crash
@@ -474,8 +474,10 @@ SoulConnection/
 │       ├── soulPool.cjs      # Curated server pool
 │       └── store.cjs         # Crash-safe JSON store
 ├── src/
-│   ├── App.jsx               # Root component; owns nearly all renderer state
+│   ├── App.jsx               # The renderer's composition root: wires hooks to components
+│   ├── hooks/                # Domain hooks; useMainState mirrors the main process
 │   ├── components/           # One file per screen or panel
+│   │   └── finder/           # The Server Finder UI (overlay, toolbar, cards, dashboard)
 │   ├── finder/               # Server Finder's test-batch engine
 │   ├── telemetryStore.js     # Traffic and latency, kept outside React
 │   ├── utils/                # Pure helpers: format, geo, ping shape, score, session

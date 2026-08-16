@@ -1,9 +1,9 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import Icon from './Icon.jsx';
-import { formatSpeed } from '../utils/format.js';
-import { healthScore, priorityByKey, recommend } from '../utils/score.js';
-import { countryOf } from '../utils/geo.js';
-import * as engine from '../finder/testEngine.js';
+import Icon from '../Icon.jsx';
+import { formatSpeed } from '../../utils/format.js';
+import { healthScore, priorityByKey, recommend } from '../../utils/score.js';
+import { countryOf } from '../../utils/geo.js';
+import * as engine from '../../finder/testEngine.js';
 
 const MODE_TITLES = { ping: 'پینگ شبکه', real: 'پینگ واقعی تونل', speed: 'بنچمارک سرعت' };
 

@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import Icon from './Icon.jsx';
+import ModalShell from './ModalShell.jsx';
 import { Section, Toggle } from './settingsPrimitives.jsx';
 
 // "قوانین مسیریابی" -- the Routing Rules screen: pick the overall mode, then
@@ -110,53 +111,51 @@ function RuleModal({ initial, onClose, onSave }) {
   }
 
   return (
-    <div className="overlay" onClick={(e) => e.target === e.currentTarget && onClose()}>
-      <div className="modal">
-        <h3>{initial ? 'ویرایش قانون' : 'قانون جدید'}</h3>
-        <p className="hint">
-          حداقل یکی از «فایل اجرایی» یا «دامنه» را پر کن. اگر هر دو را پر کنی، قانون فقط برای همان
-          برنامه و همان مقصد اعمال می‌شود و بر قوانین کلی‌تر اولویت دارد.
-        </p>
+    <ModalShell label={initial ? 'ویرایش قانون' : 'قانون جدید'} onClose={onClose}>
+      <h3>{initial ? 'ویرایش قانون' : 'قانون جدید'}</h3>
+      <p className="hint">
+        حداقل یکی از «فایل اجرایی» یا «دامنه» را پر کن. اگر هر دو را پر کنی، قانون فقط برای همان
+        برنامه و همان مقصد اعمال می‌شود و بر قوانین کلی‌تر اولویت دارد.
+      </p>
 
-        <div className="field">
-          <label className="field-label">نام برنامه (اختیاری)</label>
-          <input value={appName} placeholder="کروم" onChange={(e) => setAppName(e.target.value)} autoFocus />
-        </div>
+      <div className="field">
+        <label className="field-label">نام برنامه (اختیاری)</label>
+        <input value={appName} placeholder="کروم" onChange={(e) => setAppName(e.target.value)} autoFocus />
+      </div>
 
-        <div className="field">
-          <label className="field-label">فایل اجرایی</label>
-          <input className="mono" value={exe} placeholder="chrome.exe" onChange={(e) => setExe(e.target.value)} />
-          <span className="field-hint">مسیر کامل هم قابل قبول است؛ فقط نام فایل نگه داشته می‌شود.</span>
-        </div>
+      <div className="field">
+        <label className="field-label">فایل اجرایی</label>
+        <input className="mono" value={exe} placeholder="chrome.exe" onChange={(e) => setExe(e.target.value)} />
+        <span className="field-hint">مسیر کامل هم قابل قبول است؛ فقط نام فایل نگه داشته می‌شود.</span>
+      </div>
 
-        <div className="field">
-          <label className="field-label">دامنه یا مقصد</label>
-          <input className="mono" value={domain} placeholder="example.com یا ‎*.example.com" onChange={(e) => setDomain(e.target.value)} />
-          <span className="field-hint">خالی یعنی «همه‌ی مقصدها». برای همه‌ی زیردامنه‌ها از ‎*.example.com استفاده کن.</span>
-        </div>
+      <div className="field">
+        <label className="field-label">دامنه یا مقصد</label>
+        <input className="mono" value={domain} placeholder="example.com یا ‎*.example.com" onChange={(e) => setDomain(e.target.value)} />
+        <span className="field-hint">خالی یعنی «همه‌ی مقصدها». برای همه‌ی زیردامنه‌ها از ‎*.example.com استفاده کن.</span>
+      </div>
 
-        <div className="field">
-          <label className="field-label">مسیر اتصال</label>
-          <div className="tabs">
-            <button className={`tab ${route === 'proxy' ? 'active' : ''}`} onClick={() => setRoute('proxy')}>
-              پروکسی
-            </button>
-            <button className={`tab ${route === 'direct' ? 'active' : ''}`} onClick={() => setRoute('direct')}>
-              مستقیم
-            </button>
-          </div>
-        </div>
-
-        {error && <div className="error-msg">{error}</div>}
-
-        <div className="row">
-          <button className="btn" onClick={onClose}>انصراف</button>
-          <button className="btn primary" onClick={submit} disabled={saving || (!exe.trim() && !domain.trim())}>
-            {saving ? 'در حال ذخیره…' : 'ذخیره'}
+      <div className="field">
+        <label className="field-label">مسیر اتصال</label>
+        <div className="tabs">
+          <button className={`tab ${route === 'proxy' ? 'active' : ''}`} onClick={() => setRoute('proxy')}>
+            پروکسی
+          </button>
+          <button className={`tab ${route === 'direct' ? 'active' : ''}`} onClick={() => setRoute('direct')}>
+            مستقیم
           </button>
         </div>
       </div>
-    </div>
+
+      {error && <div className="error-msg">{error}</div>}
+
+      <div className="row">
+        <button className="btn" onClick={onClose}>انصراف</button>
+        <button className="btn primary" onClick={submit} disabled={saving || (!exe.trim() && !domain.trim())}>
+          {saving ? 'در حال ذخیره…' : 'ذخیره'}
+        </button>
+      </div>
+    </ModalShell>
   );
 }
 

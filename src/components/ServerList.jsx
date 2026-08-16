@@ -4,6 +4,7 @@ import ContextMenu from './ContextMenu.jsx';
 import { RenameModal, EditProfileModal, EditSubscriptionModal, SubscriptionDetailsModal, ConfirmModal } from './ManageModals.jsx';
 import QrModal from './QrModal.jsx';
 import SubTestModal from './SubTestModal.jsx';
+import { useModalOpenFlag } from './ModalShell.jsx';
 import * as engine from '../finder/testEngine.js';
 import { formatBytes, relativeTime, subUsageInfo } from '../utils/format.js';
 import { isMeasuring, pingMs, pingTone, pingTitle, toneForMs } from '../utils/ping.js';
@@ -193,12 +194,13 @@ function ServerList({
     return () => clearTimeout(t);
   }, [query, sortBy, collapsed, onSessionChange]);
 
-  // Signals the global Ctrl+V handler in App.jsx that a menu/modal owned by
-  // this component is open, so it doesn't add clipboard content behind it.
-  useEffect(() => {
-    document.body.dataset.modalOpen = (modal || ctxMenu || confirmDelete || testModal) ? 'true' : 'false';
-    return () => { document.body.dataset.modalOpen = 'false'; };
-  }, [modal, ctxMenu, confirmDelete, testModal]);
+  // Signals App.jsx's global shortcuts that something owned by this component
+  // is holding the screen, so Ctrl+V doesn't add a config behind it and Ctrl+K
+  // doesn't open the finder on top of it. Only the two surfaces that aren't
+  // `.overlay` dialogs are declared here -- `modal` and `confirmDelete` render
+  // through ModalShell, which raises the same flag itself. Both paths share one
+  // counter, so whichever closes last is the one that lowers it.
+  useModalOpenFlag(!!ctxMenu || !!testModal);
 
   const requestDeleteProfile = useCallback((profile) => {
     setConfirmDelete({ type: 'profile', id: profile.id, label: profile.name || profile.address });
@@ -326,11 +328,18 @@ function ServerList({
           <input
             className="search-input"
             placeholder="جست‌وجو…"
+            aria-label="جست‌وجو در کانفیگ‌ها"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
           />
         </div>
-        <select className="sort-select" value={sortBy} onChange={(e) => setSortBy(e.target.value)}>
+        <select
+          className="sort-select"
+          aria-label="ترتیب فهرست"
+          title="ترتیب فهرست"
+          value={sortBy}
+          onChange={(e) => setSortBy(e.target.value)}
+        >
           <option value="default">پیش‌فرض</option>
           <option value="ping">پینگ</option>
           <option value="name">نام</option>

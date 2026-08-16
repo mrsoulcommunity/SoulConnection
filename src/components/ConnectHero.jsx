@@ -80,10 +80,14 @@ function ConnectHero({ phase, connectionMode, target, onToggle, onSetMode }) {
         )}
       </div>
 
-      <div className={`mode-switch ${connectionMode === 'tun' ? 'tun' : ''}`}>
+      {/* A two-state choice, so the pills carry `aria-pressed` rather than
+          leaving the selection to the `.active` class alone -- which is a
+          colour change and nothing a screen reader can read. */}
+      <div className={`mode-switch ${connectionMode === 'tun' ? 'tun' : ''}`} role="group" aria-label="حالت اتصال">
         <span className="mode-thumb" aria-hidden="true" />
         <button
           className={`mode-pill ${connectionMode === 'proxy' ? 'active' : ''}`}
+          aria-pressed={connectionMode === 'proxy'}
           disabled={modeLocked}
           onClick={() => onSetMode('proxy')}
         >
@@ -91,6 +95,7 @@ function ConnectHero({ phase, connectionMode, target, onToggle, onSetMode }) {
         </button>
         <button
           className={`mode-pill ${connectionMode === 'tun' ? 'active' : ''}`}
+          aria-pressed={connectionMode === 'tun'}
           disabled={modeLocked}
           onClick={() => onSetMode('tun')}
         >

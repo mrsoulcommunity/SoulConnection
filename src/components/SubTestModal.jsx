@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useSyncExternalStore } from 'react';
 import * as engine from '../finder/testEngine.js';
 import { recommend } from '../utils/score.js';
-import TestDashboard from './TestDashboard.jsx';
+import TestDashboard from './finder/TestDashboard.jsx';
 
 const PRIORITY = 'balanced';
 

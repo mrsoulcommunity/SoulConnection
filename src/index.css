@@ -21,7 +21,17 @@
   --hairline: rgba(255, 255, 255, 0.06);
   --text: #e9ecf4;
   --text-dim: #98a0b4;
-  --text-faint: #5b6377;
+  /* The quietest of the three, and the one that carries almost every label in
+     the app: field captions, the address under a server name, protocol tags,
+     the rail's headings, the mode hint. It was #5b6377, which measures 2.8:1
+     against `--card-hover` and 3.2:1 against `--bg` -- under the 4.5:1 that
+     small text needs, on every surface it is used on. Nine-pixel Persian text
+     at 3:1 is the first thing to disappear on a dim laptop panel, which is
+     exactly where this app gets used. #7d8699 is the smallest step that clears
+     4.5:1 on the *worst* case (`--card-hover`, where the server rows sit), so
+     the whole scale passes without the hierarchy flattening -- it stays a clear
+     step below `--text-dim` at 6.4:1. */
+  --text-faint: #7d8699;
 
   --signal: #35e0c0;      /* connected / "soul" signal teal */
   --signal-dim: #1a8a76;
@@ -986,11 +996,15 @@ button:disabled { cursor: default; }
 
 .icon-btn.ping-all.busy { color: var(--signal); border-color: var(--signal-dim); }
 
+/* 26px, not the 22px this used to be: it is a destructive control that only
+   appears on hover, so it is already the hardest thing in the row to hit, and
+   22px is under the 24px minimum a pointer target should offer. The glyph
+   inside is unchanged -- this grows the target, not the visual weight. */
 .server-card .del {
   flex-shrink: 0;
   color: var(--text-faint);
-  width: 22px;
-  height: 22px;
+  width: 26px;
+  height: 26px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -3126,10 +3140,27 @@ select.setting-select:focus {
 .finder-head {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
   padding: 14px 16px 10px;
   flex-shrink: 0;
 }
+
+/* The finder's identity: a quiet brand chip at the reading start of the head
+   row, so the palette announces what it is without spending a whole title
+   bar on it. */
+.finder-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  flex-shrink: 0;
+  padding: 0 2px;
+  font-size: 12.5px;
+  font-weight: 800;
+  letter-spacing: 0.2px;
+  color: var(--signal);
+  white-space: nowrap;
+}
+.finder-brand .icon { opacity: 0.9; }
 
 .finder-search {
   position: relative;
@@ -3264,7 +3295,17 @@ kbd {
 .chip.on .chip-n { color: var(--signal); background: rgba(53, 224, 192, 0.14); }
 
 .chip .icon.flip { transform: rotate(180deg); }
-.adv-toggle { margin-inline-start: auto; }
+
+/* Sort + advanced-filter toggle, pinned to the far end of the chip row so the
+   axis the list is ordered by is always one glance away (it used to hide
+   inside the advanced panel, which read as "no sorting here"). */
+.chip-row-end {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-inline-start: auto;
+}
+.sort-axis { max-width: 168px; }
 
 /* ---- advanced filter panel ---- */
 .adv-panel {
@@ -3318,34 +3359,42 @@ kbd {
   flex-shrink: 0;
 }
 
-.mode-cards {
+/* One segmented control instead of three loose buttons: the modes are a
+   single mutually-exclusive choice, and a shared rail is what makes that
+   read at a glance. */
+.mode-seg {
   display: flex;
-  gap: 6px;
   flex: 1;
   min-width: 0;
-}
-
-.mode-card {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 8px 12px;
-  font-size: 11.5px;
-  font-weight: 600;
-  color: var(--text-dim);
+  padding: 3px;
+  gap: 2px;
   background: var(--card);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
+}
+
+.mode-seg-btn {
+  flex: 1;
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 7px 10px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--text-dim);
+  border-radius: calc(var(--radius-sm) - 3px);
   white-space: nowrap;
-  transition: border-color var(--dur-ui), color var(--dur-ui), background var(--dur-ui);
+  transition: color var(--dur-ui), background var(--dur-ui);
 }
-.mode-card:hover:not(:disabled) { border-color: #2b3247; color: var(--text); }
-.mode-card.on {
+.mode-seg-btn:hover:not(:disabled):not(.on) { color: var(--text); background: rgba(255, 255, 255, 0.04); }
+.mode-seg-btn.on {
   color: var(--signal);
-  border-color: rgba(53, 224, 192, 0.35);
   background: var(--signal-tint);
+  box-shadow: inset 0 0 0 1px rgba(53, 224, 192, 0.3);
 }
-.mode-card:disabled:not(.on) { opacity: 0.45; }
+.mode-seg-btn:disabled:not(.on) { opacity: 0.45; }
 
 .priority-select { max-width: 170px; flex-shrink: 0; }
 
@@ -3409,43 +3458,6 @@ kbd {
 }
 .log-toggle:hover { color: var(--text); }
 
-/* ---- live speed dashboard ---- */
-.speed-dash {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  margin: 0 16px 10px;
-  padding: 10px 14px;
-  background: rgba(255, 255, 255, 0.025);
-  border: 1px solid var(--hairline);
-  border-radius: var(--radius-md);
-  flex-shrink: 0;
-  animation: panel-in 0.18s ease-out;
-}
-
-.speed-gauge {
-  position: relative;
-  width: 120px;
-  flex-shrink: 0;
-  text-align: center;
-}
-.speed-gauge svg { width: 100%; display: block; }
-.g-track { fill: none; stroke: var(--border); stroke-width: 5; stroke-linecap: round; }
-.g-fill { fill: none; stroke: var(--signal); stroke-width: 5; stroke-linecap: round; transition: stroke-dasharray var(--dur-ui) linear; }
-.g-needle { stroke: var(--text); stroke-width: 2; stroke-linecap: round; transition: none; }
-.g-hub { fill: var(--text-dim); }
-.speed-gauge g { transition: transform var(--dur-ui) var(--ease-out); }
-.g-read { font-size: 12px; font-weight: 700; color: var(--signal); margin-top: 2px; }
-.g-dir { font-size: 9.5px; color: var(--text-faint); }
-
-.speed-area {
-  flex: 1;
-  height: 64px;
-  direction: ltr;
-}
-.speed-area polygon { fill: rgba(53, 224, 192, 0.25); }
-.speed-area.up polygon { fill: rgba(242, 112, 138, 0.25); }
-
 /* ---- recommendation banner ---- */
 .rec-banner {
   display: flex;
@@ -3496,7 +3508,9 @@ kbd {
   flex-shrink: 0;
 }
 .fcard:hover { background: var(--card-hover); border-color: var(--border); }
-.fcard.sel { border-color: var(--signal-dim); }
+/* The keyboard cursor. A ring as well as a border, because while a batch is
+   running the borders around it are already busy changing tone. */
+.fcard.sel { border-color: var(--signal-dim); box-shadow: 0 0 0 1px rgba(53, 224, 192, 0.18); }
 .fcard.active { background: linear-gradient(180deg, rgba(53, 224, 192, 0.06), transparent); }
 .fcard.failed { opacity: 0.75; }
 .fcard.open { background: var(--card); border-color: var(--border); cursor: default; }
@@ -3573,6 +3587,7 @@ kbd {
 }
 .fcard-meta span:not(:first-child)::before { content: '·'; margin-inline-end: 6px; }
 .fcard-meta .proto { text-transform: uppercase; font-size: 9px; letter-spacing: 0.4px; }
+.fcard-meta .tested-at { color: var(--text-faint); }
 
 .fcard-metrics {
   display: flex;
@@ -3627,11 +3642,43 @@ kbd {
   flex-shrink: 0;
 }
 
+.fcard-testing .live-ms { color: var(--signal); font-size: 10px; }
+
+.fcard-status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
 .fcard-fail {
   font-size: 10.5px;
   font-weight: 700;
   color: var(--danger);
   flex-shrink: 0;
+}
+
+/* Inline retry on a failed row: the failure is exactly when the user wants
+   to try again, and hiding that behind the expanded detail made a failed
+   card a dead end. */
+.fcard-retry {
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  color: var(--text-faint);
+  border: 1px solid var(--hairline);
+  transition: color var(--dur-ui), border-color var(--dur-ui);
+}
+.fcard-retry:hover:not(:disabled) { color: var(--signal); border-color: var(--signal-dim); }
+.fcard-retry:disabled { opacity: 0.4; }
+
+.fcard-skip {
+  font-size: 10.5px;
+  font-weight: 700;
+  color: var(--warn);
 }
 
 .score-ring {
@@ -4379,7 +4426,6 @@ kbd {
 :root.reduce-motion .finder-overlay,
 :root.reduce-motion .adv-panel,
 :root.reduce-motion .rec-banner,
-:root.reduce-motion .speed-dash,
 :root.reduce-motion .fcard-detail,
 :root.reduce-motion .recent-row { animation: none; }
 :root.reduce-motion .score-ring .ring-val { transition: none; }

@@ -51,8 +51,10 @@ electron/            main process (CommonJS, .cjs, 'use strict')
   vpn/               THE VPN CORE — everything about being connected
   lib/               leaf mechanics: one concern per file/folder
 src/                 renderer (ESM, .jsx/.js, React 18)
-  App.jsx            root component; owns nearly all renderer state
+  App.jsx            the renderer's composition root: wires hooks to components
+  hooks/             domain hooks, one concern each; useMainState mirrors main
   components/        one file per screen/panel; default export, PascalCase
+  components/finder/ the Server Finder UI (overlay, toolbar, cards, dashboard)
   finder/            Server Finder's test-batch engine (module-level store)
   utils/             pure helpers: format, geo, ping shape, score, session
   index.css          the entire stylesheet (~4.7k lines), CSS variables on :root
@@ -169,9 +171,17 @@ about it. Store keys in use: `profiles`, `subscriptions`, `settings`, `activePro
   folding lives in `normalizeSearch()`.
 - Icons come from `components/Icon.jsx` (2px stroke, rounded caps). Add a path there
   rather than inlining an SVG or using an emoji.
-- `App.jsx` holds the state; components are presentational and take callbacks. `phase` (a
-  renderer-side folding of `connectionState` plus in-flight IPC) is what the hero and
-  sidebar render — not the raw main-process state.
+- `App.jsx` is the renderer's composition root — it builds nothing and decides nothing on
+  its own, mirroring what `vpn/index.cjs` is to the VPN core. State that mirrors the main
+  process lives in `hooks/useMainState.js` (the only place renderer code subscribes to
+  IPC push channels, apart from the two module stores); every user action lives in a
+  domain hook (`useConnection`, `useLibrary`, `useRoutingActions`, …) that writes main's
+  answers back through `useMainState`'s `set` bundle. Components stay presentational and
+  take callbacks. `phase` (a renderer-side folding of `connectionState` plus in-flight
+  IPC) is what the hero and sidebar render — not the raw main-process state.
+- The Server Finder UI lives in `components/finder/` (overlay shell + toolbar + test bar
+  + cards + dashboard); its batch engine stays in `src/finder/testEngine.js` and closing
+  the overlay must never stop a running batch.
 - localStorage keys are versioned and namespaced: `soul.session.v1`,
   `soul.finder.results.v1`. Always `try/catch` around access (quota / private mode).
 - Numeric/latin runs inside RTL text use `className="mono"` (it forces `direction: ltr`
