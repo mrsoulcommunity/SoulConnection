@@ -165,6 +165,7 @@ export function SubscriptionDetailsModal({ sub, onClose }) {
       <div className="sub-url-row">
         <span className="sub-url mono">{sub.url}</span>
         <button
+          aria-label="کپی آدرس"
           className="icon-btn"
           onClick={() => navigator.clipboard?.writeText(sub.url).catch(() => {})}
           title="کپی آدرس"

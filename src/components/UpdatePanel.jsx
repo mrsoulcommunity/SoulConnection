@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useId, useState } from 'react';
 import Icon from './Icon.jsx';
 import { Section } from './settingsPrimitives.jsx';
 import { formatBytes } from '../utils/format.js';
@@ -70,6 +70,10 @@ export default function UpdatePanel({
   onCheck, onDownload, onDownloadAndInstall, onInstallNow,
   onCancelDownload, onCancelAuto, onOpenFolder, onModeChange,
 }) {
+  // Hand-written rather than a SelectField because the hint tracks the
+  // selected mode; the label still has to point at the control.
+  const modeId = useId();
+  const modeHintId = `${modeId}-hint`;
   const [now, setNow] = useState(Date.now());
   const [notesOpen, setNotesOpen] = useState(false);
 
@@ -242,13 +246,15 @@ export default function UpdatePanel({
 
       <div className="setting-row">
         <div className="setting-text">
-          <span className="setting-label">نحوه‌ی به‌روزرسانی</span>
-          <span className="setting-hint">
+          <label className="setting-label" htmlFor={modeId}>نحوه‌ی به‌روزرسانی</label>
+          <span className="setting-hint" id={modeHintId}>
             {UPDATE_MODE_OPTIONS.find((o) => o.value === mode)?.hint || ''}
           </span>
         </div>
         <select
           className="setting-select"
+          id={modeId}
+          aria-describedby={modeHintId}
           value={mode}
           onChange={(e) => onModeChange(e.target.value)}
         >

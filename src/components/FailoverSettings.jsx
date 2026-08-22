@@ -59,7 +59,7 @@ function FailoverStatusCard({ event, onDismiss }) {
         <Icon name={failed ? 'info' : switching ? 'refresh' : 'check'} size={14} />
         <span>{switching ? 'در حال تعویض سرور…' : failed ? 'تعویض سرور ناموفق بود' : 'کیفیت اتصال افت کرد'}</span>
         {!switching && (
-          <button className="icon-btn ghost failover-card-close" onClick={onDismiss} title="بستن">
+          <button aria-label="بستن" className="icon-btn ghost failover-card-close" onClick={onDismiss} title="بستن">
             <Icon name="close" size={12} />
           </button>
         )}
@@ -135,6 +135,7 @@ export default function FailoverSettings({ settings, health, failover, onUpdate 
               <div className="routing-modes compact">
                 {FAILOVER_MODES.map((m) => (
                   <button
+                    aria-label={m.title}
                     key={m.key}
                     className={`routing-mode ${settings.failoverMode === m.key ? 'on' : ''}`}
                     onClick={() => onUpdate({ failoverMode: m.key })}

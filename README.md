@@ -56,7 +56,7 @@ V2Ray / Xray client for Windows
 
 <br>
 
-**What's new in 1.2.0** · [فارسی](README.fa.md#تازه‌های-نسخهٔ-۱۲۰) · [English](README.en.md#whats-new-in-120) · [Русский](README.ru.md#что-нового-в-120)
+**What's new in 1.3.0** · [فارسی](README.fa.md#تازه‌های-نسخهٔ-۱۳۰) · [English](README.en.md#whats-new-in-130) · [Русский](README.ru.md#что-нового-в-130)
 
 <br>
 

@@ -1,7 +1,8 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useId, useMemo, useState } from 'react';
 import Icon from './Icon.jsx';
 import ModalShell from './ModalShell.jsx';
 import { Section, Toggle } from './settingsPrimitives.jsx';
+import { ConfirmModal } from './ManageModals.jsx';
 
 // "قوانین مسیریابی" -- the Routing Rules screen: pick the overall mode, then
 // decide per application and per destination.
@@ -194,15 +195,18 @@ function RunningApps({ appsState, onReload, routeOf, onPick, busyExe }) {
   return (
     <>
       <div className="app-list-head">
-        <div className="app-search">
+        {/* A <label> so the whole box -- not just the 18px-tall input inside
+            its padding -- puts the caret in the field. */}
+        <label className="app-search">
           <Icon name="search" size={13} />
           <input
             value={query}
+            aria-label="جست‌وجوی برنامه"
             placeholder="جست‌وجوی برنامه…"
             onChange={(e) => setQuery(e.target.value)}
           />
-        </div>
-        <button className="icon-btn" onClick={onReload} disabled={loading} title="تازه‌سازی فهرست">
+        </label>
+        <button aria-label="تازه‌سازی فهرست" className="icon-btn" onClick={onReload} disabled={loading} title="تازه‌سازی فهرست">
           <Icon name="refresh" size={14} />
         </button>
       </div>
@@ -242,6 +246,10 @@ export default function RoutingRules({
   onSaveRule, onDeleteRule, onToggleRule, onAddDomains, onReconnect, needsReconnect,
 }) {
   const [editing, setEditing] = useState(null); // rule object, or 'new'
+  // Deleting a rule was a single click on a 24px icon with no confirmation and
+  // no undo, in a table where the button next to it is "edit". Every other
+  // delete in the app already asks; this one is no less permanent.
+  const [confirmDelete, setConfirmDelete] = useState(null);
   const [appsState, setAppsState] = useState({ apps: [], loading: false, error: null });
   const [busyExe, setBusyExe] = useState(null);
   const rules = routing?.rules || [];
@@ -329,6 +337,7 @@ export default function RoutingRules({
         <div className="routing-modes">
           {MODES.map((m) => (
             <button
+              aria-label={m.title}
               key={m.key}
               className={`routing-mode ${mode === m.key ? 'on' : ''}`}
               onClick={() => onSetMode(m.key)}
@@ -412,15 +421,16 @@ export default function RoutingRules({
                       className={`switch small ${rule.enabled ? 'on' : ''}`}
                       role="switch"
                       aria-checked={rule.enabled}
+                      aria-label={`قانون ${rule.appName || rule.domain || ''}`.trim()}
                       title={rule.enabled ? 'غیرفعال کردن' : 'فعال کردن'}
                       onClick={() => onToggleRule(rule.id, !rule.enabled)}
                     >
                       <span className="knob" />
                     </button>
-                    <button className="icon-btn" title="ویرایش" onClick={() => setEditing(rule)}>
+                    <button aria-label="ویرایش" className="icon-btn" title="ویرایش" onClick={() => setEditing(rule)}>
                       <Icon name="edit" size={13} />
                     </button>
-                    <button className="icon-btn danger" title="حذف" onClick={() => onDeleteRule(rule.id)}>
+                    <button aria-label="حذف قانون" className="icon-btn danger" title="حذف قانون" onClick={() => setConfirmDelete(rule)}>
                       <Icon name="trash" size={13} />
                     </button>
                   </span>
@@ -493,11 +503,25 @@ export default function RoutingRules({
           onSave={onSaveRule}
         />
       )}
+
+      {confirmDelete && (
+        <ConfirmModal
+          title="حذف قانون"
+          message={
+            `قانون مربوط به ${confirmDelete.appName || confirmDelete.domain || 'این مورد'} حذف شود؟ `
+            + 'این عملیات غیرقابل بازگشت است.'
+          }
+          onClose={() => setConfirmDelete(null)}
+          onConfirm={() => onDeleteRule(confirmDelete.id)}
+        />
+      )}
     </div>
   );
 }
 
 function BulkDomains({ onAdd }) {
+  const id = useId();
+  const hintId = `${id}-hint`;
   const [text, setText] = useState('');
   const [route, setRoute] = useState('direct');
   const [busy, setBusy] = useState(false);
@@ -519,18 +543,20 @@ function BulkDomains({ onAdd }) {
   return (
     <div className="setting-row column">
       <div className="setting-text">
-        <span className="setting-label">افزودن گروهی دامنه</span>
-        <span className="setting-hint">
+        <label className="setting-label" htmlFor={id}>افزودن گروهی دامنه</label>
+        <span className="setting-hint" id={hintId}>
           چند دامنه را با کاما، سمی‌کالن یا خط جدید جدا کن. وایلدکارت هم پشتیبانی می‌شود: ‎*.example.com
         </span>
       </div>
       <textarea
         className="mono bypass-textarea"
+        id={id}
+        aria-describedby={hintId}
         value={text}
         placeholder={'example.com\n*.digikala.ir\nyoutube.com'}
         onChange={(e) => setText(e.target.value)}
       />
-      {error && <div className="error-msg">{error}</div>}
+      {error && <div className="error-msg" role="alert">{error}</div>}
       <div className="bulk-domain-actions">
         <div className="tabs compact">
           <button className={`tab ${route === 'direct' ? 'active' : ''}`} onClick={() => setRoute('direct')}>مستقیم</button>

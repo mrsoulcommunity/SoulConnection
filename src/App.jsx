@@ -199,6 +199,7 @@ export default function App() {
                 افزودن کانفیگ
               </button>
               <button
+                aria-label="سرور یاب هوشمند"
                 className="icon-btn tall"
                 onClick={() => setFinderOpen(true)}
                 title="سرور یاب هوشمند (Ctrl+K)"
@@ -211,11 +212,13 @@ export default function App() {
 
         <main className="main">
           <header className="main-head">
-            <span className="main-title">
+            <h1 className="main-title">
               {tab === 'settings' ? 'تنظیمات' : tab === 'routing' ? 'قوانین مسیریابی' : 'کنترل اتصال'}
-            </span>
+            </h1>
             <div className="main-head-actions">
               <button
+                aria-label={tab === 'routing' ? 'بازگشت به کنترل اتصال' : 'قوانین مسیریابی'}
+                aria-pressed={tab === 'routing'}
                 className={`icon-btn ghost ${tab === 'routing' ? 'active' : ''}`}
                 onClick={() => setTab(tab === 'routing' ? 'servers' : 'routing')}
                 title={tab === 'routing' ? 'بازگشت به کنترل اتصال' : 'قوانین مسیریابی'}
@@ -223,6 +226,8 @@ export default function App() {
                 <Icon name={tab === 'routing' ? 'close' : 'filter'} size={16} />
               </button>
               <button
+                aria-label={tab === 'settings' ? 'بازگشت به کنترل اتصال' : 'تنظیمات'}
+                aria-pressed={tab === 'settings'}
                 className={`icon-btn ghost ${tab === 'settings' ? 'active' : ''}`}
                 onClick={() => setTab(tab === 'settings' ? 'servers' : 'settings')}
                 title={tab === 'settings' ? 'بازگشت به کنترل اتصال' : 'تنظیمات'}

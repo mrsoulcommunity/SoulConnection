@@ -22,6 +22,7 @@ export default function FinderTestBar({
         <div className="mode-seg" role="radiogroup" aria-label="روش تست">
           {MODES.map((m) => (
             <button
+              aria-label={m.desc}
               key={m.key}
               role="radio"
               aria-checked={mode === m.key}

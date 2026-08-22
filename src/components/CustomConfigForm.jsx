@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { cloneElement, useId, useRef, useState } from 'react';
 
 const PROTOCOLS = [
   { value: 'vless', label: 'VLESS' },
@@ -80,12 +80,35 @@ const DEFAULT_FIELDS = {
   spiderX: '',
 };
 
+// The label used to be a bare <label> sitting next to the control rather than
+// pointing at it, in all twenty-odd fields of this form: visually a label,
+// programmatically a floating scrap of text. Clicking it did nothing and a
+// screen reader read the inputs out as unnamed. Rather than thread an id
+// through every call site by hand -- which is exactly the kind of bookkeeping
+// that goes stale one field at a time -- Field mints the id itself and hands
+// it to whichever control it was given.
 function Field({ label, children, hint, span }) {
+  const id = useId();
+  const hintId = `${id}-hint`;
+  // Only a real form control can be pointed at. One field wraps its own
+  // <label> around a checkbox and already names itself; giving that an
+  // htmlFor would aim a label at a label.
+  const labelable = React.isValidElement(children)
+    && ['input', 'select', 'textarea'].includes(children.type);
+  const control = labelable
+    ? cloneElement(children, {
+      id: children.props.id || id,
+      'aria-describedby': hint ? hintId : children.props['aria-describedby'],
+    })
+    : children;
+
   return (
     <div className={`custom-field ${span ? 'span-2' : ''}`}>
-      <label className="field-label">{label}</label>
-      {children}
-      {hint && <span className="setting-hint custom-field-hint">{hint}</span>}
+      {labelable
+        ? <label className="field-label" htmlFor={id}>{label}</label>
+        : <span className="field-label">{label}</span>}
+      {control}
+      {hint && <span className="setting-hint custom-field-hint" id={hintId}>{hint}</span>}
     </div>
   );
 }
@@ -103,6 +126,11 @@ export default function CustomConfigForm({ onSubmit, onCancel }) {
   const [fields, setFields] = useState(DEFAULT_FIELDS);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  // This form is long enough to scroll, and the error lands at the very
+  // bottom. Announcing it is not enough on its own -- submit leaves focus on
+  // a button that now sits next to a message the user may never scroll to --
+  // so the message itself takes focus and is read out where it is.
+  const errorRef = useRef(null);
 
   const set = (patch) => setFields((f) => ({ ...f, ...patch }));
 
@@ -129,15 +157,21 @@ export default function CustomConfigForm({ onSubmit, onCancel }) {
     return '';
   }
 
+  function failWith(message) {
+    setError(message);
+    // After the paint that renders it.
+    requestAnimationFrame(() => errorRef.current?.focus());
+  }
+
   async function handleSubmit() {
     const clientError = validateClientSide();
-    if (clientError) { setError(clientError); return; }
+    if (clientError) { failWith(clientError); return; }
     setError('');
     setLoading(true);
     try {
       await onSubmit({ ...fields, port: Number(fields.port) });
     } catch (err) {
-      setError(err.message || 'خطا رخ داد');
+      failWith(err.message || 'خطا رخ داد');
     } finally {
       setLoading(false);
     }
@@ -308,7 +342,7 @@ export default function CustomConfigForm({ onSubmit, onCancel }) {
         </Group>
       )}
 
-      {error && <div className="error-msg">{error}</div>}
+      {error && <div className="error-msg" role="alert" tabIndex={-1} ref={errorRef}>{error}</div>}
 
       <div className="row">
         <button className="btn" onClick={onCancel}>انصراف</button>

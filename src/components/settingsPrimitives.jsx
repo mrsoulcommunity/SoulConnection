@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import React, { createContext, useContext, useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import Icon from './Icon.jsx';
 
 // Shared building blocks for the Settings screens (SettingsView.jsx,
@@ -76,7 +76,7 @@ export function Section({ title, icon, description, children }) {
       <header className="settings-card-head">
         <span className="settings-card-icon"><Icon name={icon} size={16} /></span>
         <div className="settings-card-heading">
-          <h4 className="settings-section-title">{title}</h4>
+          <h2 className="settings-section-title">{title}</h2>
           {description && <p className="settings-card-desc">{description}</p>}
         </div>
       </header>
@@ -85,23 +85,45 @@ export function Section({ title, icon, description, children }) {
   );
 }
 
-export function Toggle({ checked, onChange, label, hint }) {
+// The row used to be a <label> wrapping a <button role="switch">, which looks
+// right and is wrong twice over: a <label> only names real form controls, so
+// the switch announced itself as an unnamed "switch, off", and a <label> only
+// forwards clicks to a real form control, so the whole wide row -- the obvious
+// thing to click -- was dead and the 40px switch was the only target. Naming
+// the button from the label's own id fixes the first; making the row a plain
+// clickable div fixes the second, without either of them needing a hidden
+// checkbox and a second set of CSS states.
+export function Toggle({ checked, onChange, label, hint, disabled }) {
+  const id = useId();
+  const labelId = `${id}-label`;
+  const hintId = `${id}-hint`;
+
   return (
-    <label className="setting-row">
+    <div
+      className={`setting-row toggle-row ${disabled ? 'disabled' : ''}`.trim()}
+      onClick={(e) => {
+        // The switch handles its own click; anywhere else in the row counts.
+        if (disabled || e.target.closest('.switch')) return;
+        onChange(!checked);
+      }}
+    >
       <div className="setting-text">
-        <span className="setting-label">{label}</span>
-        {hint && <span className="setting-hint">{hint}</span>}
+        <span className="setting-label" id={labelId}>{label}</span>
+        {hint && <span className="setting-hint" id={hintId}>{hint}</span>}
       </div>
       <button
         className={`switch ${checked ? 'on' : ''}`}
         onClick={() => onChange(!checked)}
         role="switch"
         aria-checked={checked}
+        aria-labelledby={labelId}
+        aria-describedby={hint ? hintId : undefined}
+        disabled={disabled}
         type="button"
       >
         <span className="knob" />
       </button>
-    </label>
+    </div>
   );
 }
 
@@ -109,14 +131,18 @@ export function Toggle({ checked, onChange, label, hint }) {
 // every call site, which is how two of them ended up without a hint and one
 // without a disabled state.
 export function SelectField({ label, hint, value, options, onChange, disabled }) {
+  const id = useId();
+  const hintId = `${id}-hint`;
   return (
     <div className="setting-row">
       <div className="setting-text">
-        <span className="setting-label">{label}</span>
-        {hint && <span className="setting-hint">{hint}</span>}
+        <label className="setting-label" htmlFor={id}>{label}</label>
+        {hint && <span className="setting-hint" id={hintId}>{hint}</span>}
       </div>
       <select
         className="setting-select"
+        id={id}
+        aria-describedby={hint ? hintId : undefined}
         value={value}
         disabled={disabled}
         onChange={(e) => onChange(e.target.value)}
@@ -134,6 +160,8 @@ export function SelectField({ label, hint, value, options, onChange, disabled })
 // succeeded or was rejected (e.g. SOCKS/HTTP port collision) -- so the field
 // never keeps showing a value that was never actually applied.
 export function PortField({ label, value, onCommit, disabled }) {
+  const id = useId();
+  const errId = `${id}-err`;
   const [draft, setDraft] = useState(String(value));
   const [error, setError] = useState('');
 
@@ -159,14 +187,19 @@ export function PortField({ label, value, onCommit, disabled }) {
   return (
     <div className="setting-row">
       <div className="setting-text">
-        <span className="setting-label">{label}</span>
-        {error && <span className="setting-hint error">{error}</span>}
+        <label className="setting-label" htmlFor={id}>{label}</label>
+        {/* role="alert" because the error appears after the field has already
+            lost focus -- nothing else on the screen would ever announce it. */}
+        {error && <span className="setting-hint error" id={errId} role="alert">{error}</span>}
       </div>
       <input
         className="setting-select port-input mono"
+        id={id}
         type="number"
         min={1024}
         max={65535}
+        aria-invalid={error ? true : undefined}
+        aria-describedby={error ? errId : undefined}
         value={draft}
         disabled={disabled}
         onChange={(e) => setDraft(e.target.value)}
@@ -178,6 +211,8 @@ export function PortField({ label, value, onCommit, disabled }) {
 }
 
 export function BypassField({ value, onCommit }) {
+  const id = useId();
+  const hintId = `${id}-hint`;
   const [draft, setDraft] = useState(value || '');
   const [saving, setSaving] = useState(false);
 
@@ -196,11 +231,13 @@ export function BypassField({ value, onCommit }) {
   return (
     <div className="setting-row column">
       <div className="setting-text">
-        <span className="setting-label">لیست bypass سفارشی</span>
-        <span className="setting-hint">آدرس‌ها یا الگوهایی که باید همیشه مستقیم (بدون پروکسی) باز شوند؛ با ; یا خط جدید جدا کن. مثال: example.com;10.20.*</span>
+        <label className="setting-label" htmlFor={id}>لیست bypass سفارشی</label>
+        <span className="setting-hint" id={hintId}>آدرس‌ها یا الگوهایی که باید همیشه مستقیم (بدون پروکسی) باز شوند؛ با ; یا خط جدید جدا کن. مثال: example.com;10.20.*</span>
       </div>
       <textarea
         className="mono bypass-textarea"
+        id={id}
+        aria-describedby={hintId}
         value={draft}
         placeholder="example.com;*.internal.local"
         onChange={(e) => setDraft(e.target.value)}
@@ -225,6 +262,8 @@ export function isValidHost(v) {
 // Generic single-line text field with the same draft/commit/error shape as
 // PortField, reused for Host and Username inputs.
 export function TextField({ label, value, onCommit, disabled, placeholder, hint, validate }) {
+  const id = useId();
+  const noteId = `${id}-note`;
   const [draft, setDraft] = useState(value || '');
   const [error, setError] = useState('');
 
@@ -253,12 +292,17 @@ export function TextField({ label, value, onCommit, disabled, placeholder, hint,
   return (
     <div className="setting-row">
       <div className="setting-text">
-        <span className="setting-label">{label}</span>
-        {error ? <span className="setting-hint error">{error}</span> : hint ? <span className="setting-hint">{hint}</span> : null}
+        <label className="setting-label" htmlFor={id}>{label}</label>
+        {error
+          ? <span className="setting-hint error" id={noteId} role="alert">{error}</span>
+          : hint ? <span className="setting-hint" id={noteId}>{hint}</span> : null}
       </div>
       <input
         className="setting-select mono"
+        id={id}
         type="text"
+        aria-invalid={error ? true : undefined}
+        aria-describedby={error || hint ? noteId : undefined}
         value={draft}
         placeholder={placeholder}
         disabled={disabled}
@@ -273,6 +317,8 @@ export function TextField({ label, value, onCommit, disabled, placeholder, hint,
 // Same shape as TextField, plus a show/hide toggle. Optional field -- an
 // empty value is always valid (no username/password required).
 export function PasswordField({ label, value, onCommit, disabled, hint }) {
+  const id = useId();
+  const noteId = `${id}-note`;
   const [draft, setDraft] = useState(value || '');
   const [error, setError] = useState('');
   const [visible, setVisible] = useState(false);
@@ -293,13 +339,19 @@ export function PasswordField({ label, value, onCommit, disabled, hint }) {
   return (
     <div className="setting-row">
       <div className="setting-text">
-        <span className="setting-label">{label}</span>
-        {error ? <span className="setting-hint error">{error}</span> : hint ? <span className="setting-hint">{hint}</span> : null}
+        <label className="setting-label" htmlFor={id}>{label}</label>
+        {error
+          ? <span className="setting-hint error" id={noteId} role="alert">{error}</span>
+          : hint ? <span className="setting-hint" id={noteId}>{hint}</span> : null}
       </div>
       <div className="password-field-wrap">
         <input
           className="setting-select mono"
+          id={id}
           type={visible ? 'text' : 'password'}
+          autoComplete="current-password"
+          aria-invalid={error ? true : undefined}
+          aria-describedby={error || hint ? noteId : undefined}
           value={draft}
           disabled={disabled}
           placeholder="—"
@@ -307,12 +359,17 @@ export function PasswordField({ label, value, onCommit, disabled, hint }) {
           onBlur={commit}
           onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); }}
         />
+        {/* Was tabIndex={-1}, which excluded exactly the people who cannot
+            fall back to "just look at the dots": someone typing a proxy
+            password without a mouse had no way to check what they typed. It
+            is a real control, so it takes a real tab stop and reports state. */}
         <button
           type="button"
           className="password-toggle"
-          tabIndex={-1}
           onClick={() => setVisible((v) => !v)}
-          title={visible ? 'پنهان کردن' : 'نمایش'}
+          aria-pressed={visible}
+          aria-label={visible ? 'پنهان کردن رمز' : 'نمایش رمز'}
+          title={visible ? 'پنهان کردن رمز' : 'نمایش رمز'}
         >
           <Icon name={visible ? 'eyeOff' : 'eye'} size={13} />
         </button>

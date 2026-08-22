@@ -72,6 +72,7 @@ function SoulPoolEntry({
       </button>
 
       <button
+        aria-label="به‌روزرسانی فهرست سرورها"
         className="soul-entry-refresh"
         onClick={onRefresh}
         disabled={refreshing || selecting}

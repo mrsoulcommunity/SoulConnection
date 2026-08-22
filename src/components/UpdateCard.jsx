@@ -81,7 +81,7 @@ function UpdateCard({ update, onDownload, onInstall, onCancelDownload, onCancelA
         </div>
 
         {!busy && !armed && (
-          <button className="uc-dismiss" onClick={onDismiss} title="بعداً یادآوری کن" type="button">
+          <button aria-label="بعداً یادآوری کن" className="uc-dismiss" onClick={onDismiss} title="بعداً یادآوری کن" type="button">
             <Icon name="close" size={12} />
           </button>
         )}

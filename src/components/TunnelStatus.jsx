@@ -222,7 +222,7 @@ function TunnelStatus({ connectionState, activeProfile, systemProxy, onToast }) 
           <div className="tunnel-summary">
             <span className={`tunnel-chip ${phase} slim`}>{stateLabel}</span>
             {hasIp ? (
-              <button className="tunnel-summary-ip mono" onClick={copyIp} title="برای کپی کلیک کن" type="button">
+              <button aria-label={`کپی نشانی ${status.ip}`} className="tunnel-summary-ip mono" onClick={copyIp} title="برای کپی کلیک کن" type="button">
                 {location?.flag && <span className="tunnel-flag">{location.flag}</span>}
                 <span className="tunnel-ip">{status.ip}</span>
               </button>
@@ -243,6 +243,7 @@ function TunnelStatus({ connectionState, activeProfile, systemProxy, onToast }) 
         )}
 
         <button
+          aria-label="بررسی دوباره"
           className="tunnel-refresh"
           onClick={handleRefresh}
           disabled={working || !connected}
@@ -252,6 +253,7 @@ function TunnelStatus({ connectionState, activeProfile, systemProxy, onToast }) 
         </button>
 
         <button
+          aria-label={expanded ? 'جمع‌کردن' : 'نمایش جزئیات کامل'}
           className="tunnel-toggle"
           onClick={toggleExpanded}
           title={expanded ? 'جمع‌کردن' : 'نمایش جزئیات کامل'}

@@ -59,7 +59,7 @@ function SettingsSearch({ query, onChange, hits, total }) {
           <span className={`settings-search-count ${hits ? '' : 'none'}`}>
             {hits ? `${hits} از ${total} بخش` : 'چیزی پیدا نشد'}
           </span>
-          <button className="icon-btn ghost settings-search-clear" title="پاک کردن" onClick={() => onChange('')}>
+          <button aria-label="پاک کردن" className="icon-btn ghost settings-search-clear" title="پاک کردن" onClick={() => onChange('')}>
             <Icon name="close" size={13} />
           </button>
         </>
@@ -272,7 +272,7 @@ export default function SettingsView({
                   <span className="setting-label">{p.name || p.address}</span>
                   <span className="setting-hint mono" dir="ltr">{formatBytes(p.totalBytes)}</span>
                 </div>
-                <button className="icon-btn" title="ریست این سرور" onClick={() => onResetUsage(p.id)}>
+                <button aria-label="ریست این سرور" className="icon-btn" title="ریست این سرور" onClick={() => onResetUsage(p.id)}>
                   <Icon name="refresh" size={14} />
                 </button>
               </div>

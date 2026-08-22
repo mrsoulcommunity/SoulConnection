@@ -47,6 +47,7 @@ function PingPill({ entry, onClick }) {
 
   return (
     <button
+      aria-label={pingTitle(entry)}
       className={`ping ${pingTone(entry)} ${measuring ? 'measuring' : ''} ${entry?.method === 'tunnel' ? 'via-tunnel' : ''}`}
       onClick={onClick}
       title={pingTitle(entry)}
@@ -133,7 +134,7 @@ function SweepStrip({ sweep, onDismiss }) {
             {failed > 0 && sweep.ok > 0 && (
               <span className="ping-sweep-stat failed">{failed} بی‌پاسخ</span>
             )}
-            <button className="ping-sweep-close" onClick={onDismiss} title="بستن">
+            <button aria-label="بستن" className="ping-sweep-close" onClick={onDismiss} title="بستن">
               <Icon name="close" size={12} />
             </button>
           </>
@@ -150,19 +151,35 @@ function SweepStrip({ sweep, onDismiss }) {
 const ServerCard = React.memo(function ServerCard({ profile, active, ping, onSelect, onRequestDelete, onPing, onContextMenu }) {
   return (
     <div className={`server-card ${active ? 'active' : ''}`} onContextMenu={(e) => onContextMenu(e, profile)}>
-      <span className="proto-tag">{profile.protocol}</span>
-      <div className="info" onClick={() => onSelect(profile.id)}>
-        <div className="name">
+      {/* Selecting a server is the primary action of this whole screen, and it
+          used to live on a <div onClick>: no tab stop, no Enter, no role. The
+          app is otherwise keyboard-driven (Ctrl+K, Ctrl+V, Escape everywhere),
+          so the one thing a keyboard could not do was choose what to connect
+          to. It is a button now, and says which one is chosen. */}
+      <button
+        type="button"
+        className="info"
+        onClick={() => onSelect(profile.id)}
+        aria-pressed={active}
+      >
+        <span className="name">
           {profile.favorite && <Icon name="star" size={10} className="fav-mark" />}
           {profile.name || profile.address}
-        </div>
-        <div className="addr mono">
+        </span>
+        {/* The protocol tag used to sit in the row's flex flow ahead of the
+            name, where it plus the ping pill plus the delete button left the
+            name about 58px in a 296px sidebar -- every server in the list
+            truncated, including the part that identifies it. It is secondary
+            detail, so it moved down to the line that already carries secondary
+            detail, and the name got the width back. */}
+        <span className="addr mono">
+          <span className="proto-tag">{profile.protocol}</span>
           {profile.address}:{profile.port}
           {profile.totalBytes > 0 && <span className="usage-tag"> · {formatBytes(profile.totalBytes)}</span>}
-        </div>
-      </div>
+        </span>
+      </button>
       <PingPill entry={ping} onClick={() => onPing(profile.id)} />
-      <button className="del" onClick={() => onRequestDelete(profile)} title="حذف">
+      <button aria-label="حذف" className="del" onClick={() => onRequestDelete(profile)} title="حذف">
         <Icon name="close" size={13} />
       </button>
     </div>
@@ -345,6 +362,9 @@ function ServerList({
           <option value="name">نام</option>
         </select>
         <button
+          aria-label={sweeping
+            ? (pingSweep.cancelled ? 'در حال توقف…' : `توقف اندازه‌گیری (${pingSweep.done} از ${pingSweep.total})`)
+            : 'اندازه‌گیری پینگ واقعی همه‌ی سرورها'}
           className={`icon-btn ping-all ${sweeping ? 'busy' : ''}`}
           onClick={sweeping ? onCancelPingAll : runPingAll}
           disabled={sweeping && pingSweep.cancelled}
@@ -399,6 +419,7 @@ function ServerList({
                 <div className="group-head-row">
                   <button
                     className="group-toggle"
+                    aria-expanded={!collapsed[group.key]}
                     onClick={() => setCollapsed((c) => ({ ...c, [group.key]: !c[group.key] }))}
                   >
                     <span className={`chev ${collapsed[group.key] ? 'closed' : ''}`}>
@@ -417,6 +438,7 @@ function ServerList({
                   {!group.local && (
                     <>
                       <button
+                        aria-label="به‌روزرسانی"
                         className="group-action"
                         onClick={() => onRefreshSubscription(group.sub.id)}
                         disabled={refreshingSubIds?.has(group.sub.id)}
@@ -426,7 +448,7 @@ function ServerList({
                           ? <span className="icon-spinner" aria-hidden="true" />
                           : <Icon name="refresh" size={13} />}
                       </button>
-                      <button className="group-action danger" onClick={() => requestDeleteSubscription(group.sub)} title="حذف ساب‌اسکریپشن">
+                      <button aria-label="حذف ساب‌اسکریپشن" className="group-action danger" onClick={() => requestDeleteSubscription(group.sub)} title="حذف ساب‌اسکریپشن">
                         <Icon name="close" size={13} />
                       </button>
                     </>

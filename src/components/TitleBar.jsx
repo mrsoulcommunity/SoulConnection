@@ -14,13 +14,13 @@ export default function TitleBar({ maximized, onMinimize, onToggleMaximize, onCl
       </div>
       <div className="titlebar-drag" onDoubleClick={onToggleMaximize} />
       <div className="titlebar-controls">
-        <button className="tb-btn" onClick={onMinimize} title="کوچک‌کردن">
+        <button aria-label="کوچک‌کردن" className="tb-btn" onClick={onMinimize} title="کوچک‌کردن">
           <Icon name="winMinimize" size={13} />
         </button>
-        <button className="tb-btn" onClick={onToggleMaximize} title={maximized ? 'بازگردانی' : 'بیشینه‌سازی'}>
+        <button aria-label={maximized ? 'بازگردانی' : 'بیشینه‌سازی'} className="tb-btn" onClick={onToggleMaximize} title={maximized ? 'بازگردانی' : 'بیشینه‌سازی'}>
           <Icon name={maximized ? 'winRestore' : 'winMaximize'} size={12} />
         </button>
-        <button className="tb-btn close" onClick={onClose} title="بستن">
+        <button aria-label="بستن" className="tb-btn close" onClick={onClose} title="بستن">
           <Icon name="close" size={13} />
         </button>
       </div>

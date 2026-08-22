@@ -101,7 +101,7 @@ export default function QrModal({ title, subtitle, value, onClose, onToast }) {
 
       <div className="sub-url-row">
         <span className="sub-url mono">{value}</span>
-        <button className="icon-btn" onClick={handleCopyLink} title="کپی لینک">
+        <button aria-label="کپی لینک" className="icon-btn" onClick={handleCopyLink} title="کپی لینک">
           <Icon name="copy" size={13} />
         </button>
       </div>

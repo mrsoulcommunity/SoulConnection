@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useId, useState } from 'react';
 import Icon from './Icon.jsx';
 import { Section } from './settingsPrimitives.jsx';
 
@@ -63,6 +63,13 @@ function ResultRow({ r, winner }) {
 // process would leave the select showing the old value until some unrelated
 // refresh happened to arrive.
 export default function ShieldPanel({ shield, mode, progress, onTune, onCancel, onModeChange, onManualKeyChange, onClear }) {
+  // These two rows carry a hint that changes with the selection, so they are
+  // written out by hand rather than through SelectField -- which is how they
+  // ended up as the only selects in Settings with no label pointing at them.
+  const modeId = useId();
+  const modeHintId = `${modeId}-hint`;
+  const manualId = useId();
+  const manualHintId = `${manualId}-hint`;
   const [now, setNow] = useState(Date.now());
   useEffect(() => {
     if (!progress?.running) return undefined;
@@ -161,10 +168,10 @@ export default function ShieldPanel({ shield, mode, progress, onTune, onCancel, 
 
       <div className="setting-row">
         <div className="setting-text">
-          <span className="setting-label">نحوه‌ی کار سپر</span>
-          <span className="setting-hint">{SHIELD_MODES.find((m) => m.value === activeMode)?.hint || ''}</span>
+          <label className="setting-label" htmlFor={modeId}>نحوه‌ی کار سپر</label>
+          <span className="setting-hint" id={modeHintId}>{SHIELD_MODES.find((m) => m.value === activeMode)?.hint || ''}</span>
         </div>
-        <select className="setting-select" value={activeMode} onChange={(e) => onModeChange(e.target.value)}>
+        <select className="setting-select" id={modeId} aria-describedby={modeHintId} value={activeMode} onChange={(e) => onModeChange(e.target.value)}>
           {SHIELD_MODES.map((m) => <option key={m.value} value={m.value}>{m.label}</option>)}
         </select>
       </div>
@@ -172,11 +179,13 @@ export default function ShieldPanel({ shield, mode, progress, onTune, onCancel, 
       {activeMode === 'manual' && (
         <div className="setting-row">
           <div className="setting-text">
-            <span className="setting-label">روش ثابت</span>
-            <span className="setting-hint">برای همه‌ی سرورها اعمال می‌شود</span>
+            <label className="setting-label" htmlFor={manualId}>روش ثابت</label>
+            <span className="setting-hint" id={manualHintId}>برای همه‌ی سرورها اعمال می‌شود</span>
           </div>
           <select
             className="setting-select"
+            id={manualId}
+            aria-describedby={manualHintId}
             value={shield?.manualKey || 'off'}
             onChange={(e) => onManualKeyChange(e.target.value)}
           >
